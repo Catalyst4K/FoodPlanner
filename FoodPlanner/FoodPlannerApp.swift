@@ -13,7 +13,7 @@ struct FoodPlannerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RecipeListView()
+            MainTabView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
         }
     }

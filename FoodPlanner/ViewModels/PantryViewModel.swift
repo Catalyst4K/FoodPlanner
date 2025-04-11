@@ -8,21 +8,22 @@ class PantryViewModel: ObservableObject {
         guard let index = pantryItems.firstIndex(where: { $0.id == id }) else { return }
 
         pantryItems[index].ingredient.text = newValue
-        
+
         // Add a new empty ingredient field only if the last one is filled
         if index == pantryItems.count - 1 && !newValue.isEmpty {
             pantryItems.append(PantryItem(ingredient: IngredientItem(text: "")))
         }
-        
+
+        // Remove empty fields when text is empty
         if pantryItems[index].ingredient.text.isEmpty && index < pantryItems.count - 1 {
             removeItem(id: id)
         }
 
-        // Ensure only one empty field remains at the end
-        cleanEmptyIngredients()
+        // Ensure there is only one empty field at the end
+        cleanEmptyItems()
     }
 
-    // Remove an item by its ID
+    // Removes an item from the pantry by ID
     func removeItem(id: UUID) {
         guard let index = pantryItems.firstIndex(where: { $0.id == id }) else { return }
 
@@ -33,26 +34,40 @@ class PantryViewModel: ObservableObject {
 
         // If there are no ingredients left, add one empty field at the end
         if pantryItems.isEmpty {
-            pantryItems.append(PantryItem(ingredient: IngredientItem(text: "")))
+            pantryItems.append(PantryItem(ingredient: IngredientItem(text: ""))) // Add empty field
         }
 
         // Ensure only one empty field remains at the end
-        cleanEmptyIngredients()
+        cleanEmptyItems()
     }
 
-    // Toggles whether an ingredient is used or not
-    func toggleItemUsed(id: UUID) {
-        if let index = pantryItems.firstIndex(where: { $0.id == id }) {
-            pantryItems[index].isUsed.toggle()  // Toggle used state
-        }
-    }
-
-    // Ensures that only one empty field remains at the end
-    private func cleanEmptyIngredients() {
+    // Removes extra empty items, ensuring only one empty field remains at the end
+    func cleanEmptyItems() {
+        // Remove extra empty fields in the pantry (except for the last one)
         while pantryItems.count > 1,
               pantryItems.last?.ingredient.text.isEmpty == true,
               pantryItems[pantryItems.count - 2].ingredient.text.isEmpty == true {
             pantryItems.removeLast()
         }
+    }
+
+    // Add an ingredient to the pantry
+    func addItem(name: String) {
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+
+        // Insert before the empty field (if it exists)
+        if pantryItems.last?.ingredient.text.isEmpty == true {
+            pantryItems.insert(PantryItem(ingredient: IngredientItem(text: name)), at: pantryItems.count - 1)
+        } else {
+            pantryItems.append(PantryItem(ingredient: IngredientItem(text: name)))
+        }
+
+        // Ensure only one empty field remains at the end
+        cleanEmptyItems()
+    }
+
+    // Method to move an item from the shopping list to the pantry
+    func moveItemToPantry(item: ShoppingListItem) {
+        addItem(name: item.ingredient.text)  // Add to pantry
     }
 }

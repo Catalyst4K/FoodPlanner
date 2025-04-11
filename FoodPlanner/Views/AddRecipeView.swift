@@ -11,14 +11,16 @@ struct AddRecipeView: View {
         ZStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Recipe title field
+                    // Recipe title field with padding to prevent the border from touching the edge
                     TextField("Recipe Title", text: $viewModel.title)
                         .font(.title)
                         .fontWeight(.bold)
                         .padding(.top, 40)
                         .multilineTextAlignment(.center)
                         .textFieldStyle(PlainTextFieldStyle())
+                        .padding(.horizontal) // Add horizontal padding to the TextField
                         .overlay(Divider().background(Color.gray), alignment: .bottom)
+                        .padding(.horizontal) // Add padding to the divider to prevent it from touching edges
 
                     // Ingredients list
                     VStack(spacing: 10) {
@@ -72,12 +74,15 @@ struct AddRecipeView: View {
 
                         TextEditor(text: $viewModel.instructions)
                             .frame(minHeight: 150)
-                            .padding()
                             .background(Color.white)
-                            .cornerRadius(30)
-                            .border(Color.gray, width: 0.5)
+                            .cornerRadius(20)
                             .font(.body)
                             .padding(.horizontal)
+                            .overlay(content: { // <- Rounded border the entire content
+                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .strokeBorder(.gray, lineWidth: 0.5)
+                                    .padding(10)
+                            })
                     }
                 }
                 .padding(.bottom, 100)
