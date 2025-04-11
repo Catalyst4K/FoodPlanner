@@ -60,6 +60,13 @@ class RecipeListViewModel: ObservableObject {
         recipes.append(recipe)
     }
 
+    // Removes a recipe from the list by ID
+    func deleteRecipe(id: UUID) {
+        if let index = recipes.firstIndex(where: { $0.id == id }) {
+            recipes.remove(at: index)
+        }
+    }
+
     // Removes extra empty fields, ensuring only one remains at the end
     private func cleanEmptyIngredients() {
         while ingredients.count > 1,
@@ -68,7 +75,7 @@ class RecipeListViewModel: ObservableObject {
             ingredients.removeLast()
         }
     }
-    
+
     func submitRecipe() {
         let cleanedIngredients = ingredients
             .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
