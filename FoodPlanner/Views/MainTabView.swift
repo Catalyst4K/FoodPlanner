@@ -8,7 +8,7 @@ struct MainTabView: View {
     var body: some View {
         TabView {
             // Recipes Tab
-            RecipeListScreen(recipeListViewModel: recipeListViewModel)
+            RecipeListScreen(recipeListViewModel: recipeListViewModel, pantryViewModel: pantryViewModel, shoppingListViewModel: shoppingListViewModel )
                 .tabItem {
                     Label("Recipes", systemImage: "list.bullet")
                 }

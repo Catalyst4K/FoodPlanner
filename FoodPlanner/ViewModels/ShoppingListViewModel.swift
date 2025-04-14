@@ -2,7 +2,7 @@ import SwiftUI
 
 class ShoppingListViewModel: ObservableObject {
     @Published var shoppingList: [ShoppingListItem] = [ShoppingListItem(id: UUID(), ingredient: IngredientItem(text: ""), isChecked: false)]
-    
+
     // Handles changes in the ingredient text field
     func handleIngredientChange(id: UUID, newValue: String) {
         guard let index = shoppingList.firstIndex(where: { $0.id == id }) else { return }
@@ -57,18 +57,26 @@ class ShoppingListViewModel: ObservableObject {
 
     // Removes extra empty items, ensuring only one empty field remains at the end
     private func cleanEmptyItems() {
+        // Keep only one empty item at the end
         while shoppingList.count > 1,
               shoppingList.last?.ingredient.text.isEmpty == true,
               shoppingList[shoppingList.count - 2].ingredient.text.isEmpty == true {
-            shoppingList.removeLast()
+            shoppingList.remove(at: shoppingList.count - 2)
         }
     }
 
     // Add a new item to the shopping list
-    func addItem(name: String) {
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+    func addItem(ingredient: IngredientItem) {
+        // Clean up any empty items before appending
+        shoppingList.removeAll { $0.ingredient.text.trimmingCharacters(in: .whitespaces).isEmpty }
 
-        let newItem = ShoppingListItem(id: UUID(), ingredient: IngredientItem(text: name), isChecked: false)
+        // Add the new item
+        let newItem = ShoppingListItem(id: UUID(), ingredient: ingredient, isChecked: false)
         shoppingList.append(newItem)
+
+        // Ensure one empty field at the end
+        shoppingList.append(ShoppingListItem(id: UUID(), ingredient: IngredientItem(text: ""), isChecked: false))
     }
+
+    
 }
