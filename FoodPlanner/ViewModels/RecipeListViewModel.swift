@@ -60,6 +60,13 @@ class RecipeListViewModel: ObservableObject {
         recipes.append(recipe)
     }
 
+    // Removes a recipe from the list by ID
+    func deleteRecipe(id: UUID) {
+        if let index = recipes.firstIndex(where: { $0.id == id }) {
+            recipes.remove(at: index)
+        }
+    }
+
     // Removes extra empty fields, ensuring only one remains at the end
     private func cleanEmptyIngredients() {
         while ingredients.count > 1,
@@ -68,7 +75,7 @@ class RecipeListViewModel: ObservableObject {
             ingredients.removeLast()
         }
     }
-    
+
     func submitRecipe() {
         let cleanedIngredients = ingredients
             .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -87,4 +94,22 @@ class RecipeListViewModel: ObservableObject {
         addRecipe(newRecipe)
         resetForm()
     }
+    
+    func addUncheckedIngredientsToShoppingList(from recipe: Recipe, shoppingListViewModel: ShoppingListViewModel, pantryViewModel: PantryViewModel) {
+            let uncheckedIngredients = recipe.ingredients.filter { ingredient in
+                // Ensure the ingredient is not checked and not in the pantry
+                !pantryViewModel.pantryItems.contains(where: { $0.ingredient.text.lowercased() == ingredient.text.lowercased() })
+            }
+
+            // Add each unchecked ingredient to the shopping list, checking if it's not already there
+            for ingredient in uncheckedIngredients {
+                // Check if the ingredient is already in the shopping list
+                let ingredientExists = shoppingListViewModel.shoppingList.contains { $0.ingredient.text.lowercased() == ingredient.text.lowercased() }
+
+                // Add the ingredient only if it's not already in the shopping list
+                if !ingredientExists {
+                    shoppingListViewModel.addItem(ingredient: ingredient)
+                }
+            }
+        }
 }

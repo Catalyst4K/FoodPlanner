@@ -6,7 +6,7 @@
 //
 import Foundation
 
-struct IngredientItem: Identifiable, Equatable {
-    let id = UUID()
-    var text: String
+struct IngredientItem: Identifiable {
+    var id = UUID()
+    var text: String  // The ingredient name (e.g., "Eggs")
 }

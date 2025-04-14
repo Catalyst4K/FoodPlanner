@@ -2,70 +2,88 @@ import SwiftUI
 
 struct RecipeDetailView: View {
     var recipe: Recipe
-
-    @State private var selectedIngredients: Set<UUID> = []
+    @ObservedObject var viewModel: RecipeListViewModel
+    @Environment(\.presentationMode) var presentationMode
+    @ObservedObject var pantryViewModel: PantryViewModel
+    @ObservedObject var shoppingListViewModel: ShoppingListViewModel
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Recipe Title
                 Text(recipe.title)
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .padding(.top, 20)
 
-                // Ingredients Section
-                Text("Ingredients")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .padding(.top, 10)
+                HStack {
+                    Text("Ingredients")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                        .padding(.top, 10)
+                    Spacer()
+                    Button(action: {
+                        // Call the view model method to add unchecked ingredients to the shopping list
+                        viewModel.addUncheckedIngredientsToShoppingList(from: recipe, shoppingListViewModel: shoppingListViewModel, pantryViewModel: pantryViewModel)
+                    }) {
+                        Image(systemName: "cart.fill")
+                            .foregroundColor(.blue)
+                            .padding(5)
+                    }
+                }
 
                 VStack(alignment: .leading, spacing: 5) {
                     ForEach(recipe.ingredients) { ingredient in
                         HStack {
+                            let isInPantry = pantryViewModel.pantryItems.contains { $0.ingredient.text.lowercased() == ingredient.text.lowercased() }
                             Button(action: {
-                                toggleSelection(for: ingredient.id)
+                                if let matching = pantryViewModel.pantryItems.first(where: { $0.ingredient.text.lowercased() == ingredient.text.lowercased() }) {
+                                    pantryViewModel.removeItem(id: matching.id)
+                                }
                             }) {
-                                Image(systemName: selectedIngredients.contains(ingredient.id) ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(selectedIngredients.contains(ingredient.id) ? .green : .gray)
+                                Image(systemName: isInPantry ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(isInPantry ? .green : .gray)
                             }
                             .buttonStyle(PlainButtonStyle())
-
                             Text(ingredient.text)
-                                .strikethrough(selectedIngredients.contains(ingredient.id), color: .gray)
-                                .foregroundColor(selectedIngredients.contains(ingredient.id) ? .gray : .primary)
+                                .font(.body)
+                                .padding(.bottom, 2)
                         }
-                        .padding(.vertical, 4)
                     }
                 }
 
                 Divider()
                     .padding(.vertical, 10)
 
-                // Instructions Section
                 Text("Instructions")
                     .font(.title2)
                     .fontWeight(.semibold)
+                    .padding(.top, 10)
 
                 Text(recipe.instructions)
                     .font(.body)
                     .padding(.top, 10)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(nil) // Allows multi-line wrapping if needed
+                    .fixedSize(horizontal: false, vertical: true) // Allows the text to expand vertically
 
-                Spacer()
+                // Simplified Delete Button to remove the recipe
+                Button(action: {
+                    viewModel.deleteRecipe(id: recipe.id)
+                    presentationMode.wrappedValue.dismiss() // Go back after deletion
+                }) {
+                    Text("Delete Recipe")
+                        .foregroundColor(.white)
+                        .fontWeight(.bold)
+                        .padding()
+                        .frame(maxWidth: .infinity) // Ensure the button stretches across the width
+                        .background(Color.red) // Set background to red
+                        .cornerRadius(8)
+                }
+                .padding(.top, 20) // Add padding to the top of the button
+                .buttonStyle(PlainButtonStyle()) // Remove default button style
             }
             .padding()
         }
         .navigationTitle(recipe.title)
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func toggleSelection(for id: UUID) {
-        if selectedIngredients.contains(id) {
-            selectedIngredients.remove(id)
-        } else {
-            selectedIngredients.insert(id)
-        }
     }
 }

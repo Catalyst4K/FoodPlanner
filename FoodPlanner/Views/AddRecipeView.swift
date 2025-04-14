@@ -11,14 +11,16 @@ struct AddRecipeView: View {
         ZStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Recipe title field
+                    // Recipe title field with padding to prevent the border from touching the edge
                     TextField("Recipe Title", text: $viewModel.title)
                         .font(.title)
                         .fontWeight(.bold)
                         .padding(.top, 40)
                         .multilineTextAlignment(.center)
                         .textFieldStyle(PlainTextFieldStyle())
+                        .padding(.horizontal) // Add horizontal padding to the TextField
                         .overlay(Divider().background(Color.gray), alignment: .bottom)
+                        .padding(.horizontal) // Add padding to the divider to prevent it from touching edges
 
                     // Ingredients list
                     VStack(spacing: 10) {
@@ -72,33 +74,38 @@ struct AddRecipeView: View {
 
                         TextEditor(text: $viewModel.instructions)
                             .frame(minHeight: 150)
-                            .padding()
+                            .padding(10)
                             .background(Color.white)
-                            .cornerRadius(30)
-                            .border(Color.gray, width: 0.5)
+                            .cornerRadius(20)
                             .font(.body)
                             .padding(.horizontal)
+                            .overlay(content: {
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .strokeBorder(.gray, lineWidth: 0.5)
+                                    .padding(10)
+                            })
                     }
-                }
-                .padding(.bottom, 100)
-            }
 
-            // Add Recipe Button
-            VStack {
-                Spacer()
-                Button(action: addRecipe) {
+                    // Add Recipe Button
                     HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add Recipe")
-                            .foregroundColor(viewModel.isFormValid() ? .blue : .gray)
-                            .opacity(viewModel.isFormValid() ? 1 : 0.5)
+                        Spacer() // Push the button to the bottom
+                        Button(action: addRecipe) {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                Text("Add Recipe")
+                                    .foregroundColor(viewModel.isFormValid() ? .blue : .gray)
+                                    .opacity(viewModel.isFormValid() ? 1 : 0.5)
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 10)
+                            .frame(maxWidth: .infinity)
+                        }
+                        .disabled(!viewModel.isFormValid())
+                        .padding(.bottom, 20)
+                        Spacer()
                     }
-                    .padding(.horizontal)
-                    .padding(.vertical, 10)
-                    .frame(maxWidth: .infinity)
                 }
-                .disabled(!viewModel.isFormValid())
-                .padding(.bottom, 20)
+                .padding(.bottom, 100) // Ensure enough space for the Add Recipe Button
             }
         }
         .navigationTitle("Add Recipe")
