@@ -69,11 +69,16 @@ struct ShoppingListView: View {
                                 Divider()
                                     .padding(.horizontal)
                             }
+                            
                         }
                     }
                 }
             }
         }
         .navigationBarHidden(true)
+        .onTapGesture {
+            UIApplication.shared.endEditing()
+        }
     }
+    
 }

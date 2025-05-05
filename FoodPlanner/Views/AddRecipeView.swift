@@ -118,6 +118,9 @@ struct AddRecipeView: View {
                 viewModel.ingredients = [IngredientItem(text: "")]
             }
         }
+        .onTapGesture {
+            UIApplication.shared.endEditing()
+        }
     }
 
     private func addRecipe() {

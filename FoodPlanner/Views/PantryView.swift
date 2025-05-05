@@ -60,5 +60,9 @@ struct PantryView: View {
             // Clean up any empty fields when the pantry view appears
             pantryViewModel.cleanEmptyItems()
         }
+        .onTapGesture {
+            UIApplication.shared.endEditing()
+        }
     }
+    
 }
