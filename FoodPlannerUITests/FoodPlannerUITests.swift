@@ -2,7 +2,9 @@
 //  FoodPlannerUITests.swift
 //  FoodPlannerUITests
 //
-//  Created by Callum Jones on 10/04/2025.
+//  Acceptance tests. These launch the real app and drive the UI via XCUIApplication.
+//  Firebase is real, so login/signup submissions aren't asserted end-to-end — we only
+//  verify the UI shape/flow (screens shown, controls present, navigation works).
 //
 
 import XCTest
@@ -10,34 +12,87 @@ import XCTest
 final class FoodPlannerUITests: XCTestCase {
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
     }
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    // MARK: - Helpers
+
+    /// Launch a fresh app instance in the signed-out state.
+    @MainActor
+    private func launchSignedOut() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += ["-uitest-signed-out"]
+        app.launch()
+        return app
     }
+
+    // MARK: - Tests
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func test_appLaunches() throws {
+        // Smoke: the app should launch and either the Login title or the Recipes tab exists.
         let app = XCUIApplication()
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        let login = app.staticTexts["login.title"]
+        let recipesTab = app.tabBars.buttons["Recipes"]
+
+        let visible = login.waitForExistence(timeout: 5) || recipesTab.waitForExistence(timeout: 5)
+        XCTAssertTrue(visible, "Neither the Login screen nor the main tab bar became visible on launch")
     }
 
     @MainActor
-    func testLaunchPerformance() throws {
-        if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 7.0, *) {
-            // This measures how long it takes to launch your application.
-            measure(metrics: [XCTApplicationLaunchMetric()]) {
-                XCUIApplication().launch()
-            }
-        }
+    func test_signedOutUserSeesLoginScreen() throws {
+        let app = launchSignedOut()
+
+        XCTAssertTrue(
+            app.staticTexts["login.title"].waitForExistence(timeout: 5),
+            "Login title should be visible when signed out"
+        )
+        XCTAssertTrue(app.textFields["login.email"].exists, "Email field should be present")
+        XCTAssertTrue(app.secureTextFields["login.password"].exists, "Password field should be present")
+        XCTAssertTrue(app.buttons["login.submit"].exists, "Log In button should be present")
+        XCTAssertTrue(app.buttons["login.signupLink"].exists, "Sign up link should be present")
+    }
+
+    @MainActor
+    func test_loginToSignupNavigation() throws {
+        let app = launchSignedOut()
+
+        XCTAssertTrue(app.staticTexts["login.title"].waitForExistence(timeout: 5))
+
+        app.buttons["login.signupLink"].tap()
+
+        // SignUpView doesn't have identifiers, but its navigation title / text should appear.
+        // Look for a "Sign Up" static text within 3 seconds.
+        let signUpText = app.staticTexts["Sign Up"]
+        XCTAssertTrue(
+            signUpText.waitForExistence(timeout: 3),
+            "Tapping the sign-up link should navigate to a Sign Up screen"
+        )
+    }
+
+    @MainActor
+    func test_invalidLoginShowsError() throws {
+        let app = launchSignedOut()
+
+        XCTAssertTrue(app.staticTexts["login.title"].waitForExistence(timeout: 5))
+
+        let email = app.textFields["login.email"]
+        email.tap()
+        email.typeText("not-a-real-user@example.invalid")
+
+        let password = app.secureTextFields["login.password"]
+        password.tap()
+        password.typeText("wrongpassword")
+
+        app.buttons["login.submit"].tap()
+
+        // The view sets errorMessage = "Invalid credentials" on failure.
+        let error = app.staticTexts["Invalid credentials"]
+        XCTAssertTrue(
+            error.waitForExistence(timeout: 8),
+            "An invalid login should surface an 'Invalid credentials' error"
+        )
     }
 }

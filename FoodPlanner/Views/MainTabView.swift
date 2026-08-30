@@ -1,71 +1,58 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @StateObject private var recipeListViewModel = RecipeListViewModel()
-    @StateObject private var shoppingListViewModel = ShoppingListViewModel()
-    @StateObject private var pantryViewModel = PantryViewModel()
+    @EnvironmentObject private var dataManager: DataManager
     @ObservedObject var authViewModel: AuthViewModel
 
     @State private var showAccount = false
     @State private var showSortMenu = false
-    @State private var selectedSortOption: String = "Sort by Pantry Match"
+    @State private var selectedRecipeSort: String = "Sort by Pantry Match"
+    @State private var selectedShoppingSort: String = ShoppingListView.sortNewest
     @State private var selectedTab = 0
+
+    private let recipeSortOptions = ["Sort by Pantry Match", "Sort by Recipe Name"]
+
+    private var isSortableTab: Bool {
+        selectedTab == 0 || selectedTab == 2
+    }
+
+    private var currentSortSelection: String {
+        selectedTab == 0 ? selectedRecipeSort : selectedShoppingSort
+    }
+
+    private var currentSortOptions: [String] {
+        selectedTab == 0 ? recipeSortOptions : ShoppingListView.sortOptions
+    }
 
     var body: some View {
         ZStack {
             NavigationStack {
                 TabView(selection: $selectedTab) {
-                    // Recipes Tab
-                    RecipeListScreen(
-                        recipeListViewModel: recipeListViewModel,
-                        pantryViewModel: pantryViewModel,
-                        shoppingListViewModel: shoppingListViewModel,
-                        selectedSortOption: $selectedSortOption
-                    )
-                    .tag(0)
-                    .tabItem {
-                        Label("Recipes", systemImage: "list.bullet")
-                    }
+                    RecipeListScreen(selectedSortOption: $selectedRecipeSort)
+                        .tag(0)
+                        .tabItem { Label("Recipes", systemImage: "list.bullet") }
 
-                    // Pantry Tab
-                    NavigationView {
-                        PantryView(pantryViewModel: pantryViewModel)
-                    }
-                    .tag(1)
-                    .tabItem {
-                        Label("Pantry", systemImage: "refrigerator")
-                    }
+                    NavigationView { PantryView() }
+                        .tag(1)
+                        .tabItem { Label("Pantry", systemImage: "refrigerator") }
 
-                    // Shopping List Tab
-                    NavigationView {
-                        ShoppingListView(
-                            shoppingListViewModel: shoppingListViewModel,
-                            pantryViewModel: pantryViewModel
-                        )
-                    }
-                    .tag(2)
-                    .tabItem {
-                        Label("Shopping", systemImage: "cart")
-                    }
+                    NavigationView { ShoppingListView(sortOption: $selectedShoppingSort) }
+                        .tag(2)
+                        .tabItem { Label("Shopping", systemImage: "cart") }
                 }
                 .toolbar {
-                    // Settings cog (always visible)
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button {
                             showAccount = true
                         } label: {
-                            Image(systemName: "gearshape")
-                                .imageScale(.large)
+                            Image(systemName: "gearshape").imageScale(.large)
                         }
                     }
 
-                    // Sort button (only visible on Recipes tab for now)
                     ToolbarItem(placement: .navigationBarLeading) {
-                        if selectedTab == 0 {
+                        if isSortableTab {
                             Button {
-                                withAnimation {
-                                    showSortMenu.toggle()
-                                }
+                                withAnimation { showSortMenu.toggle() }
                             } label: {
                                 Image(systemName: "arrow.up.arrow.down.circle.fill")
                                     .foregroundColor(.blue)
@@ -78,45 +65,82 @@ struct MainTabView: View {
                 }
             }
 
-            // Overlay sort menu
             if showSortMenu {
-                Color.black.opacity(0.4)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation {
-                            showSortMenu = false
-                        }
-                    }
-
-                VStack(spacing: 0) {
-                    if selectedTab == 0 {
-                        // Sort options for Recipe tab
-                        ForEach(["Sort by Pantry Match", "Sort by Recipe Name"], id: \.self) { option in
-                            Button(action: {
-                                selectedSortOption = option
-                                withAnimation {
-                                    showSortMenu = false
-                                }
-                            }) {
-                                Text(option)
-                                    .padding()
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(selectedSortOption == option ? Color.blue.opacity(0.2) : Color.white)
-                            }
-                            .foregroundColor(.primary)
-                        }
-                    }
-                    // Extend with else-if for Pantry or Shopping tab sort options if needed
-                }
-                .background(Color.white)
-                .cornerRadius(12)
-                .shadow(radius: 10)
-                .padding(.horizontal, 40)
+                sortMenuOverlay
             }
+
+            errorBanner
         }
     }
-}
 
-#Preview {
-    MainTabView(authViewModel: AuthViewModel())
+    private var sortMenuOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation { showSortMenu = false }
+                }
+
+            VStack(spacing: 0) {
+                ForEach(currentSortOptions, id: \.self) { option in
+                    Button {
+                        applySort(option)
+                        withAnimation { showSortMenu = false }
+                    } label: {
+                        HStack {
+                            Text(option)
+                            Spacer()
+                            if currentSortSelection == option {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.accentColor)
+                            }
+                        }
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .foregroundColor(.primary)
+                }
+            }
+            .glassEffect(.regular, in: .rect(cornerRadius: 16))
+            .padding(.horizontal, 40)
+        }
+    }
+
+    private func applySort(_ option: String) {
+        if selectedTab == 0 {
+            selectedRecipeSort = option
+        } else if selectedTab == 2 {
+            selectedShoppingSort = option
+        }
+    }
+
+    @ViewBuilder
+    private var errorBanner: some View {
+        if let message = dataManager.errorMessage {
+            VStack {
+                Spacer()
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.white)
+                    Text(message)
+                        .foregroundColor(.white)
+                        .font(.footnote)
+                    Spacer()
+                    Button {
+                        dataManager.clearError()
+                    } label: {
+                        Image(systemName: "xmark").foregroundColor(.white)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding()
+                .glassEffect(.regular.tint(.red), in: .rect(cornerRadius: 12))
+                .padding(.horizontal)
+                .padding(.bottom, 60)
+            }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .animation(.easeInOut, value: dataManager.errorMessage)
+        }
+    }
 }

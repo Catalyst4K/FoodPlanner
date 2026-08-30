@@ -1,130 +1,183 @@
 import SwiftUI
 
 struct AddRecipeView: View {
-    @ObservedObject var viewModel: RecipeListViewModel
+    @StateObject var viewModel: RecipeListViewModel
+    var editingRecipeId: String?
+    @EnvironmentObject private var dataManager: DataManager
     @Environment(\.presentationMode) var presentationMode
 
-    // Track the focus state of each TextField
-    @FocusState private var focusedField: UUID?
+    @State private var newIngredientText: String = ""
+    @FocusState private var isAddIngredientFocused: Bool
+
+    private var isEditing: Bool { editingRecipeId != nil }
+    private var navigationTitle: String { isEditing ? "Edit Recipe" : "Add Recipe" }
+    private var actionLabel: String { isEditing ? "Save Changes" : "Add Recipe" }
+    private var actionIcon: String { isEditing ? "checkmark.circle.fill" : "plus.circle.fill" }
 
     var body: some View {
-        ZStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    // Recipe title field with padding to prevent the border from touching the edge
-                    TextField("Recipe Title", text: $viewModel.title)
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .padding(.top, 40)
-                        .multilineTextAlignment(.center)
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .padding(.horizontal) // Add horizontal padding to the TextField
-                        .overlay(Divider().background(Color.gray), alignment: .bottom)
-                        .padding(.horizontal) // Add padding to the divider to prevent it from touching edges
-
-                    // Ingredients list
-                    VStack(spacing: 10) {
-                        ForEach(viewModel.ingredients) { ingredient in
-                            HStack {
-                                // Custom Binding for ingredient field
-                                let binding = Binding<String>(
-                                    get: {
-                                        ingredient.text
-                                    },
-                                    set: { newValue in
-                                        viewModel.handleIngredientChange(id: ingredient.id, newValue: newValue)
-                                    }
-                                )
-
-                                // Ingredient TextField with FocusState
-                                TextField("Ingredient", text: binding)
-                                    .focused($focusedField, equals: ingredient.id)  // Bind to the specific field
-                                    .padding(.vertical, 8)
-                                    .padding(.horizontal)
-                                    .textFieldStyle(PlainTextFieldStyle())
-                                    .lineLimit(nil)
-
-                                // Delete button for non-empty fields
-                                if !ingredient.text.isEmpty {
-                                    Button(action: {
-                                        viewModel.removeIngredient(id: ingredient.id)
-                                    }) {
-                                        Image(systemName: "trash")
-                                            .foregroundColor(.red)
-                                            .padding(5)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                }
-                            }
-                            .padding(.horizontal)
-                            .background(Color.white)
-                            .cornerRadius(8)
-                            .overlay(Divider().background(Color.gray), alignment: .bottom)
-                            .padding(.horizontal)
-                        }
-                    }
-
-                    // Instructions section
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("Instructions")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 20)
-
-                        TextEditor(text: $viewModel.instructions)
-                            .frame(minHeight: 150)
-                            .padding(10)
-                            .background(Color.white)
-                            .cornerRadius(20)
-                            .font(.body)
-                            .padding(.horizontal)
-                            .overlay(content: {
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .strokeBorder(.gray, lineWidth: 0.5)
-                                    .padding(10)
-                            })
-                    }
-
-                    // Add Recipe Button
-                    HStack {
-                        Spacer() // Push the button to the bottom
-                        Button(action: addRecipe) {
-                            HStack {
-                                Image(systemName: "plus.circle.fill")
-                                Text("Add Recipe")
-                                    .foregroundColor(viewModel.isFormValid() ? .blue : .gray)
-                                    .opacity(viewModel.isFormValid() ? 1 : 0.5)
-                            }
-                            .padding(.horizontal)
-                            .padding(.vertical, 10)
-                            .frame(maxWidth: .infinity)
-                        }
-                        .disabled(!viewModel.isFormValid())
-                        .padding(.bottom, 20)
-                        Spacer()
-                    }
-                }
-                .padding(.bottom, 100) // Ensure enough space for the Add Recipe Button
+        ScrollView {
+            VStack(spacing: 20) {
+                titleField
+                ingredientsSection
+                instructionsSection
+                submitButton
             }
+            .padding(.bottom, 100)
         }
-        .navigationTitle("Add Recipe")
+        .scrollDismissesKeyboard(.interactively)
+        .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarItems(leading: Button("Cancel", action: cancelAction))
         .navigationBarBackButtonHidden(true)
-        .onAppear {
-            // Ensure the first ingredient field is available when the view appears
-            if viewModel.ingredients.isEmpty {
-                viewModel.ingredients = [IngredientItem(text: "")]
+    }
+
+    // MARK: - Sections
+
+    private var titleField: some View {
+        TextField("Recipe Title", text: $viewModel.title)
+            .font(.title)
+            .fontWeight(.bold)
+            .padding(.top, 40)
+            .multilineTextAlignment(.center)
+            .textFieldStyle(.plain)
+            .padding(.horizontal)
+            .overlay(Divider().background(Color.gray), alignment: .bottom)
+            .padding(.horizontal)
+    }
+
+    private var ingredientsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Ingredients")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+
+            ForEach(viewModel.ingredients) { ingredient in
+                ingredientRow(ingredient)
+                    .transition(.opacity)
             }
-        }
-        .onTapGesture {
-            UIApplication.shared.endEditing()
+
+            addIngredientRow
         }
     }
 
-    private func addRecipe() {
-        viewModel.submitRecipe()
+    private func ingredientRow(_ ingredient: IngredientItem) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(ingredient.name)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal)
+                    .foregroundColor(.primary)
+
+                Spacer()
+
+                Button {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        viewModel.removeIngredient(id: ingredient.id)
+                    }
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                        .padding(5)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal)
+            Divider()
+        }
+    }
+
+    private var addIngredientRow: some View {
+        HStack {
+            Button {
+                commitIngredient()
+                isAddIngredientFocused = true
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundColor(.gray)
+                    .padding(.leading)
+            }
+            .buttonStyle(.plain)
+
+            TextField("Add ingredient", text: $newIngredientText)
+                .focused($isAddIngredientFocused)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 4)
+                .submitLabel(.return)
+                .onSubmit(commitIngredient)
+        }
+        .padding(.horizontal)
+        .onChange(of: isAddIngredientFocused) { was, _ in
+            if was { commitIngredient() }
+        }
+    }
+
+    private var instructionsSection: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Instructions")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 20)
+
+            TextEditor(text: $viewModel.instructions)
+                .frame(minHeight: 150)
+                .padding(10)
+                .background(Color.white)
+                .cornerRadius(20)
+                .font(.body)
+                .padding(.horizontal)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(.gray, lineWidth: 0.5)
+                        .padding(10)
+                }
+        }
+    }
+
+    private var submitButton: some View {
+        HStack {
+            Spacer()
+            Button(action: submit) {
+                HStack {
+                    Image(systemName: actionIcon)
+                    Text(actionLabel)
+                        .foregroundColor(viewModel.isFormValid() ? .blue : .gray)
+                        .opacity(viewModel.isFormValid() ? 1 : 0.5)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
+            }
+            .disabled(!viewModel.isFormValid())
+            .padding(.bottom, 20)
+            Spacer()
+        }
+    }
+
+    // MARK: - Actions
+
+    private func commitIngredient() {
+        let trimmed = newIngredientText.trimmingCharacters(in: .whitespaces)
+        newIngredientText = ""
+        guard !trimmed.isEmpty else { return }
+        withAnimation(.easeOut(duration: 0.25)) {
+            viewModel.addIngredient(name: trimmed)
+        }
+    }
+
+    private func submit() {
+        // Ensure any in-progress input is committed before building the recipe.
+        commitIngredient()
+        guard let recipe = viewModel.buildRecipe() else { return }
+        if let editingRecipeId = editingRecipeId {
+            Task { await dataManager.updateRecipe(recipeId: editingRecipeId, recipe: recipe) }
+        } else {
+            Task { await dataManager.addRecipe(recipe: recipe) }
+        }
+        viewModel.resetForm()
         presentationMode.wrappedValue.dismiss()
     }
 

@@ -13,14 +13,17 @@ struct LoginView: View {
                 Text("Login")
                     .font(.largeTitle)
                     .padding()
+                    .accessibilityIdentifier("login.title")
 
                 TextField("Email", text: $email)
                     .padding()
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .accessibilityIdentifier("login.email")
 
                 SecureField("Password", text: $password)
                     .padding()
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .accessibilityIdentifier("login.password")
 
                 if !errorMessage.isEmpty {
                     Text(errorMessage)
@@ -41,12 +44,14 @@ struct LoginView: View {
                 .background(Color.blue)
                 .foregroundColor(.white)
                 .cornerRadius(10)
+                .accessibilityIdentifier("login.submit")
 
                 Button("Don't have an account? Sign up") {
                     path.append("signup")
                 }
                 .padding()
                 .foregroundColor(.blue)
+                .accessibilityIdentifier("login.signupLink")
 
                 Spacer()
             }

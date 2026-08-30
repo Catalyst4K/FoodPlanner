@@ -1,68 +1,108 @@
 import SwiftUI
 
 struct PantryView: View {
-    @ObservedObject var pantryViewModel: PantryViewModel  // Observe pantry changes
-    
+    @EnvironmentObject private var dataManager: DataManager
+    @State private var newItemText: String = ""
+    @State private var hiddenIds: Set<String> = []
+    @FocusState private var isAddFieldFocused: Bool
+
+    private var visibleIngredients: [IngredientItem] {
+        dataManager.pantryIngredients.filter { !hiddenIds.contains($0.id) }
+    }
+
     var body: some View {
-        VStack {
-            // Title placed outside of ScrollView for static positioning
+        VStack(spacing: 0) {
             Text("Pantry")
                 .font(.largeTitle)
                 .fontWeight(.bold)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 16) // Padding from the top
-                .padding(.bottom, 8) // Padding below title
+                .frame(maxWidth: .infinity)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
 
-            // Scrollable content for the pantry
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {  // Adjusted spacing between items
-                    // List of pantry items
-                    LazyVStack(spacing: 0) {
-                        ForEach(pantryViewModel.pantryItems) { item in
-                            HStack {
-                                // Ingredient text field with no visible border or background
-                                TextField("Enter ingredient", text: Binding(
-                                    get: { item.ingredient.text },
-                                    set: { newText in
-                                        pantryViewModel.handleIngredientChange(id: item.id, newValue: newText)
-                                    }
-                                ))
-                                .padding(.vertical, 10)  // Vertical padding for better spacing
-                                .padding(.horizontal)  // Horizontal padding for better alignment
-                                .background(Color.clear) // No background for clean look
-                                .foregroundColor(.primary)  // Text color for ingredient
-                                .cornerRadius(8)  // Rounded corners for a clean, modern look
-
-                                // Delete button for non-empty items
-                                if !item.ingredient.text.isEmpty {
-                                    Button(action: {
-                                        withAnimation(.easeOut(duration: 1.0)) {
-                                            pantryViewModel.removeItem(id: item.id)  // Remove item from pantry
-                                        }
-                                    }) {
-                                        Image(systemName: "trash")
-                                            .foregroundColor(.red)
-                                            .padding(5)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())  // To remove any default button styling
-                                }
-                            }
-                            .padding(.horizontal)  // Added horizontal padding to align the text and checkboxes properly
-                            .background(Color(UIColor.systemBackground)) // Background color for each item
-                            Divider()
-                        }
+                LazyVStack(spacing: 0) {
+                    ForEach(visibleIngredients) { ingredient in
+                        row(for: ingredient)
+                            .transition(.opacity)
                     }
+                    addRow
                 }
             }
         }
-        .padding(.horizontal)  // Padding on the horizontal edges for the entire view
-        .onAppear {
-            // Clean up any empty fields when the pantry view appears
-            pantryViewModel.cleanEmptyItems()
-        }
+        .padding(.horizontal)
         .onTapGesture {
             UIApplication.shared.endEditing()
         }
+        .onChange(of: dataManager.pantryIngredients.map(\.id)) { _, newIds in
+            hiddenIds = hiddenIds.intersection(Set(newIds))
+        }
     }
-    
+
+    // MARK: - Rows
+
+    private func row(for ingredient: IngredientItem) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Text(ingredient.name)
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button {
+                    remove(ingredient)
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                        .padding(5)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 10)
+
+            Divider().padding(.horizontal)
+        }
+    }
+
+    private var addRow: some View {
+        HStack(spacing: 8) {
+            Button {
+                commit()
+                isAddFieldFocused = true
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .foregroundColor(.gray)
+            }
+            .buttonStyle(.plain)
+
+            TextField("Add ingredient", text: $newItemText)
+                .focused($isAddFieldFocused)
+                .submitLabel(.return)
+                .onSubmit(commit)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+        .onChange(of: isAddFieldFocused) { was, _ in
+            // Commit on focus loss so tapping away also saves.
+            if was { commit() }
+        }
+    }
+
+    // MARK: - Actions
+
+    private func commit() {
+        let trimmed = newItemText.trimmingCharacters(in: .whitespaces)
+        newItemText = ""
+        guard !trimmed.isEmpty else { return }
+        Task {
+            await dataManager.addIngredientToPantry(name: trimmed)
+        }
+    }
+
+    private func remove(_ ingredient: IngredientItem) {
+        // Fade + collapse immediately; Firestore write runs concurrently.
+        withAnimation(.easeOut(duration: 0.35)) {
+            _ = hiddenIds.insert(ingredient.id)
+        }
+        Task { await dataManager.removeIngredientFromPantry(ingredientId: ingredient.id) }
+    }
 }
