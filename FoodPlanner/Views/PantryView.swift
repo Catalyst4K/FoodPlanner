@@ -26,13 +26,11 @@ struct PantryView: View {
                             .transition(.opacity)
                     }
                     addRow
+                    tapToAddSpacer
                 }
             }
         }
         .padding(.horizontal)
-        .onTapGesture {
-            UIApplication.shared.endEditing()
-        }
         .onChange(of: dataManager.pantryIngredients.map(\.id)) { _, newIds in
             hiddenIds = hiddenIds.intersection(Set(newIds))
         }
@@ -87,15 +85,28 @@ struct PantryView: View {
         }
     }
 
+    // Fills the empty area below the add row. Tap toggles: focuses the add field when
+    // idle, dismisses the keyboard when already typing.
+    private var tapToAddSpacer: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .frame(minHeight: 300)
+            .onTapGesture {
+                if isAddFieldFocused {
+                    isAddFieldFocused = false
+                } else {
+                    isAddFieldFocused = true
+                }
+            }
+    }
+
     // MARK: - Actions
 
     private func commit() {
         let trimmed = newItemText.trimmingCharacters(in: .whitespaces)
         newItemText = ""
         guard !trimmed.isEmpty else { return }
-        Task {
-            await dataManager.addIngredientToPantry(name: trimmed)
-        }
+        Task { await dataManager.addIngredientToPantry(name: trimmed) }
     }
 
     private func remove(_ ingredient: IngredientItem) {

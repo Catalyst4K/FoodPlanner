@@ -34,7 +34,41 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
+/// Lets the app-wide keyboard-dismiss tap coexist with buttons, list rows, and scroll views:
+/// it recognises simultaneously with every other gesture and (paired with `cancelsTouchesInView`
+/// = false) never swallows the touch, so underlying controls still receive it.
+final class KeyboardDismissGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+    static let shared = KeyboardDismissGestureDelegate()
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        true
+    }
+}
+
 extension AppDelegate {
+    private static let keyboardDismissGestureName = "keyboardDismissTap"
+
+    /// Installs a window-level tap gesture that dismisses the keyboard on a tap anywhere in empty
+    /// space, across every screen. Because it recognises simultaneously and doesn't cancel touches,
+    /// taps still reach buttons, text fields, and rows underneath. Idempotent per window.
+    static func installKeyboardDismissGesture() {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for scene in scenes {
+            for window in scene.windows {
+                let alreadyInstalled = window.gestureRecognizers?.contains { $0.name == keyboardDismissGestureName } ?? false
+                if alreadyInstalled { continue }
+                let tap = UITapGestureRecognizer(target: window, action: #selector(UIView.endEditing))
+                tap.name = keyboardDismissGestureName
+                tap.cancelsTouchesInView = false
+                tap.delegate = KeyboardDismissGestureDelegate.shared
+                window.addGestureRecognizer(tap)
+            }
+        }
+    }
+
     /// Update the allowed orientations and force the system to reevaluate immediately.
     /// Both `setNeedsUpdateOfSupportedInterfaceOrientations()` and `requestGeometryUpdate(...)` are needed:
     /// the first prompts UIKit to re-query our AppDelegate before starting any rotation animation,
@@ -93,6 +127,9 @@ struct FoodPlannerApp: App {
                 // the first time the user tilts the device after launch.
                 if newPhase == .active {
                     AppDelegate.setAllowedOrientations(AppDelegate.orientationLock)
+                    // Windows exist by the time the scene is active; install the tap-to-dismiss
+                    // gesture here so it's present app-wide (idempotent, safe to call repeatedly).
+                    AppDelegate.installKeyboardDismissGesture()
                 }
             }
         }

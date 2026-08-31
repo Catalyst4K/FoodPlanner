@@ -3,6 +3,10 @@ import SwiftUI
 struct AddRecipeView: View {
     @StateObject var viewModel: RecipeListViewModel
     var editingRecipeId: String?
+    /// Called synchronously with the built recipe when the user taps Save, BEFORE the Firestore
+    /// write starts. Lets the parent (e.g. RecipeDetailView) optimistically update its own state
+    /// so the user sees changes reflected instantly rather than after the network round-trip.
+    var onSave: ((Recipe) -> Void)? = nil
     @EnvironmentObject private var dataManager: DataManager
     @Environment(\.presentationMode) var presentationMode
 
@@ -60,6 +64,7 @@ struct AddRecipeView: View {
             }
 
             addIngredientRow
+            tapToAddSpacer
         }
     }
 
@@ -112,6 +117,21 @@ struct AddRecipeView: View {
         .onChange(of: isAddIngredientFocused) { was, _ in
             if was { commitIngredient() }
         }
+    }
+
+    // Fills the empty area under the ingredient list. Tap toggles: focuses the add field
+    // when idle, dismisses the keyboard when already typing.
+    private var tapToAddSpacer: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .frame(minHeight: 120)
+            .onTapGesture {
+                if isAddIngredientFocused {
+                    isAddIngredientFocused = false
+                } else {
+                    isAddIngredientFocused = true
+                }
+            }
     }
 
     private var instructionsSection: some View {
@@ -171,11 +191,15 @@ struct AddRecipeView: View {
     private func submit() {
         // Ensure any in-progress input is committed before building the recipe.
         commitIngredient()
-        guard let recipe = viewModel.buildRecipe() else { return }
+        guard let built = viewModel.buildRecipe() else { return }
+        // Fire the callback before the async Firestore write so callers can optimistically
+        // update their UI. It carries only the edit-form fields (title/ingredients/instructions);
+        // callers are responsible for preserving fields the form doesn't own (id, ownerId, isShared).
+        onSave?(built)
         if let editingRecipeId = editingRecipeId {
-            Task { await dataManager.updateRecipe(recipeId: editingRecipeId, recipe: recipe) }
+            Task { await dataManager.updateRecipe(recipeId: editingRecipeId, recipe: built) }
         } else {
-            Task { await dataManager.addRecipe(recipe: recipe) }
+            Task { await dataManager.addRecipe(recipe: built) }
         }
         viewModel.resetForm()
         presentationMode.wrappedValue.dismiss()

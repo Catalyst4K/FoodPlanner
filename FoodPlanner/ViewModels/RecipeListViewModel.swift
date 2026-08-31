@@ -10,6 +10,13 @@ class RecipeListViewModel: ObservableObject {
 
     /// Prefill the form with an existing recipe for editing.
     init(editing recipe: Recipe) {
+        load(from: recipe)
+    }
+
+    /// Repopulate the form from an existing recipe. Lets a single long-lived view model
+    /// (e.g. a `@StateObject` on RecipeDetailView) be reused across successive edits,
+    /// since a `@StateObject` is only constructed once and can't be re-`init`ed.
+    func load(from recipe: Recipe) {
         self.title = recipe.title
         self.instructions = recipe.instructions
         self.ingredients = recipe.ingredients.map {

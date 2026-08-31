@@ -69,7 +69,9 @@ class DataManager: ObservableObject {
                 let recipes = await self.buildRecipes(from: docs)
                 if Task.isCancelled { return }
                 await MainActor.run {
-                    self.userRecipes = recipes
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        self.userRecipes = recipes
+                    }
                 }
             }
         }
@@ -95,8 +97,10 @@ class DataManager: ObservableObject {
                 let recipes = await self.buildRecipes(from: docs)
                 if Task.isCancelled { return }
                 await MainActor.run {
-                    // Exclude the current user's own recipes; they're already in userRecipes.
-                    self.sharedRecipes = recipes.filter { $0.ownerId != self.currentUserId }
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        // Exclude the current user's own recipes; they're already in userRecipes.
+                        self.sharedRecipes = recipes.filter { $0.ownerId != self.currentUserId }
+                    }
                 }
             }
         }
@@ -104,10 +108,12 @@ class DataManager: ObservableObject {
     }
 
     private func buildRecipes(from docs: [QueryDocumentSnapshot]) async -> [Recipe] {
-        // Sort newest-first by CreatedAt. Docs missing CreatedAt (legacy) go to the end.
+        // Sort newest-first by CreatedAt. Use `.estimate` so freshly-written docs whose
+        // server timestamp hasn't resolved yet sort at their eventual position (avoids
+        // a visible jump when the server confirms). Docs missing CreatedAt go to the end.
         let sortedDocs = docs.sorted { a, b in
-            let aTime = (a.data()["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
-            let bTime = (b.data()["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
+            let aTime = (a.data(with: .estimate)["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
+            let bTime = (b.data(with: .estimate)["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
             return aTime > bTime
         }
 
@@ -153,10 +159,40 @@ class DataManager: ObservableObject {
     private func fetchRecipeIngredients(subcollection: CollectionReference) async -> [IngredientItem] {
         do {
             let snap = try await subcollection.getDocuments()
-            return await fetchIngredients(from: snap.documents, refField: "Ref")
+            // Recipe ingredients are ordered by the explicit `Order` index written on each doc,
+            // so the list stays in the order the user entered rather than the arbitrary doc-ID
+            // order Firestore would otherwise return. Legacy docs without `Order` sort to the end.
+            let sortedDocs = snap.documents.sorted { a, b in
+                let aOrder = (a.data()["Order"] as? Int) ?? Int.max
+                let bOrder = (b.data()["Order"] as? Int) ?? Int.max
+                if aOrder != bOrder { return aOrder < bOrder }
+                return a.documentID < b.documentID
+            }
+            return await fetchIngredientsPreservingOrder(from: sortedDocs, refField: "Ref")
         } catch {
             print("Error fetching ingredients from \(subcollection.path): \(error.localizedDescription)")
             return []
+        }
+    }
+
+    /// Same per-doc parallel fetch as `fetchIngredients`, but skips the CreatedAt sort — the caller
+    /// has already sorted the docs in the required order (e.g. by `Order` for recipe subcollections).
+    private func fetchIngredientsPreservingOrder(from sortedDocs: [QueryDocumentSnapshot], refField: String) async -> [IngredientItem] {
+        return await withTaskGroup(of: (Int, IngredientItem?).self) { group in
+            for (index, doc) in sortedDocs.enumerated() {
+                guard let ref = doc.data()[refField] as? DocumentReference else { continue }
+                let quantity = doc.data()["Quantity"] as? Double
+                let unit = doc.data()["Unit"] as? String
+                group.addTask { [weak self] in
+                    let item = await self?.fetchIngredient(from: ref, quantity: quantity, unit: unit)
+                    return (index, item)
+                }
+            }
+            var indexed: [(Int, IngredientItem)] = []
+            for await (index, item) in group {
+                if let item = item { indexed.append((index, item)) }
+            }
+            return indexed.sorted { $0.0 < $1.0 }.map { $0.1 }
         }
     }
 
@@ -164,33 +200,31 @@ class DataManager: ObservableObject {
         let userRecipesRef = db.collection("Users").document(currentUserId).collection("Recipes")
         let newRecipeRef = userRecipesRef.document()
 
-        // Resolve all ingredients in parallel (case-insensitive dedup on /Ingredients)
-        let pending: [(ref: DocumentReference, quantity: Double?, unit: String?)] = await withTaskGroup(
-            of: (DocumentReference, Double?, String?)?.self
-        ) { group in
-            for ingredient in recipe.ingredients {
-                group.addTask { [weak self] in
-                    guard let ref = await self?.addUniqueIngredient(name: ingredient.name) else { return nil }
-                    return (ref, ingredient.quantity, ingredient.unit)
-                }
-            }
-            var results: [(DocumentReference, Double?, String?)] = []
-            for await entry in group {
-                if let entry = entry { results.append(entry) }
-            }
-            return results
-        }
+        // Resolve all ingredients in parallel (case-insensitive dedup on /Ingredients).
+        // Tag each with its original index and re-sort: a task group yields results in
+        // completion order, so without this the `Order` written below would reflect network
+        // timing rather than the user's entered order, scrambling the list on read-back.
+        let pending = await resolveIngredientsPreservingOrder(recipe.ingredients)
 
         do {
             // Write the Ingredients subcollection FIRST. Subcollection writes don't require the
             // parent doc to exist, and importantly they don't trigger the /Users/{uid}/Recipes
             // listener — so we avoid a snapshot where the recipe exists with zero ingredients.
+            // Each ingredient is tagged with an explicit `Order` index so the list preserves the
+            // user's insertion order on read (subcollection docs have no inherent order otherwise
+            // and would come back shuffled by doc-ID). Writes run in parallel to minimise latency
+            // before the parent recipe write fires the listener.
             let ingredientSubRef = newRecipeRef.collection("Ingredients")
-            for entry in pending {
-                var data: [String: Any] = ["Ref": entry.ref]
-                if let quantity = entry.quantity { data["Quantity"] = quantity }
-                if let unit = entry.unit, !unit.isEmpty { data["Unit"] = unit }
-                try await ingredientSubRef.addDocument(data: data)
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for (index, entry) in pending.enumerated() {
+                    group.addTask {
+                        var data: [String: Any] = ["Ref": entry.ref, "Order": index]
+                        if let quantity = entry.quantity { data["Quantity"] = quantity }
+                        if let unit = entry.unit, !unit.isEmpty { data["Unit"] = unit }
+                        try await ingredientSubRef.addDocument(data: data)
+                    }
+                }
+                try await group.waitForAll()
             }
 
             // Now write the recipe doc; the listener fires once with the ingredients already there.
@@ -214,40 +248,45 @@ class DataManager: ObservableObject {
         let recipeRef = db.collection("Users").document(currentUserId).collection("Recipes").document(recipeId)
         let ingredientSubRef = recipeRef.collection("Ingredients")
 
-        // Resolve ingredients (dedup /Ingredients) in parallel
-        let pending: [(ref: DocumentReference, quantity: Double?, unit: String?)] = await withTaskGroup(
-            of: (DocumentReference, Double?, String?)?.self
-        ) { group in
-            for ingredient in recipe.ingredients {
-                group.addTask { [weak self] in
-                    guard let ref = await self?.addUniqueIngredient(name: ingredient.name) else { return nil }
-                    return (ref, ingredient.quantity, ingredient.unit)
-                }
-            }
-            var results: [(DocumentReference, Double?, String?)] = []
-            for await entry in group {
-                if let entry = entry { results.append(entry) }
-            }
-            return results
-        }
+        // Resolve ingredients (dedup /Ingredients) in parallel, preserving the user's entered
+        // order (see resolveIngredientsPreservingOrder) so the `Order` written below is correct.
+        let pending = await resolveIngredientsPreservingOrder(recipe.ingredients)
 
         do {
-            // Replace the Ingredients subcollection
+            // Replace the Ingredients subcollection. Deletes and adds both run in parallel to
+            // minimise the delay before the parent recipe write fires the listener. Each new
+            // ingredient is tagged with an explicit `Order` index so insertion order survives
+            // the round-trip (subcollection docs otherwise come back shuffled by doc-ID).
             let existing = try await ingredientSubRef.getDocuments()
-            for doc in existing.documents {
-                try await doc.reference.delete()
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for doc in existing.documents {
+                    group.addTask { try await doc.reference.delete() }
+                }
+                try await group.waitForAll()
             }
-            for entry in pending {
-                var data: [String: Any] = ["Ref": entry.ref]
-                if let quantity = entry.quantity { data["Quantity"] = quantity }
-                if let unit = entry.unit, !unit.isEmpty { data["Unit"] = unit }
-                try await ingredientSubRef.addDocument(data: data)
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for (index, entry) in pending.enumerated() {
+                    group.addTask {
+                        var data: [String: Any] = ["Ref": entry.ref, "Order": index]
+                        if let quantity = entry.quantity { data["Quantity"] = quantity }
+                        if let unit = entry.unit, !unit.isEmpty { data["Unit"] = unit }
+                        try await ingredientSubRef.addDocument(data: data)
+                    }
+                }
+                try await group.waitForAll()
             }
 
             // Touch the recipe doc last so the listener refetches with the new subcollection.
+            // Always include an UpdatedAt server timestamp: if the user only edited
+            // ingredients, Name and Instructions are unchanged and Firestore treats the
+            // updateData as a no-op that does NOT fire snapshot listeners — meaning the
+            // parent recipe listener never re-runs buildRecipes, so the new ingredients
+            // never propagate to `userRecipes` and the detail view stays stale until some
+            // other real write (e.g. toggling share) forces the listener to fire.
             try await recipeRef.updateData([
                 "Name": recipe.title,
-                "Instructions": recipe.instructions
+                "Instructions": recipe.instructions,
+                "UpdatedAt": FieldValue.serverTimestamp()
             ])
             print("Recipe \(recipeId) updated.")
         } catch {
@@ -304,7 +343,9 @@ class DataManager: ObservableObject {
                 let items = await self.fetchIngredients(from: docs, refField: "Ingredient")
                 if Task.isCancelled { return }
                 await MainActor.run {
-                    self.pantryIngredients = items
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        self.pantryIngredients = items
+                    }
                 }
             }
         }
@@ -355,7 +396,9 @@ class DataManager: ObservableObject {
                 let items = await self.fetchIngredients(from: docs, refField: "Ingredient")
                 if Task.isCancelled { return }
                 await MainActor.run {
-                    self.shoppingListIngredients = items
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        self.shoppingListIngredients = items
+                    }
                 }
             }
         }
@@ -392,12 +435,41 @@ class DataManager: ObservableObject {
 
     // MARK: - Ingredient helpers
 
+    /// Resolves each ingredient to its (deduped) `/Ingredients` DocumentReference in parallel while
+    /// preserving the input order. A plain task group returns results in completion order, which
+    /// would scramble the `Order` index written for recipe ingredients; tagging by input index and
+    /// re-sorting keeps the persisted order identical to what the user entered.
+    private func resolveIngredientsPreservingOrder(
+        _ ingredients: [IngredientItem]
+    ) async -> [(ref: DocumentReference, quantity: Double?, unit: String?)] {
+        let indexed = await withTaskGroup(of: (Int, DocumentReference, Double?, String?)?.self) { group in
+            for (index, ingredient) in ingredients.enumerated() {
+                group.addTask { [weak self] in
+                    guard let ref = await self?.addUniqueIngredient(name: ingredient.name) else { return nil }
+                    return (index, ref, ingredient.quantity, ingredient.unit)
+                }
+            }
+            var results: [(Int, DocumentReference, Double?, String?)] = []
+            for await entry in group {
+                if let entry = entry { results.append(entry) }
+            }
+            return results
+        }
+        return indexed
+            .sorted { $0.0 < $1.0 }
+            .map { (ref: $0.1, quantity: $0.2, unit: $0.3) }
+    }
+
     private func fetchIngredients(from docs: [QueryDocumentSnapshot], refField: String) async -> [IngredientItem] {
-        // Sort newest-first by CreatedAt. Docs missing CreatedAt (legacy) go to the end.
+        // Sort oldest-first by CreatedAt so newly-added pantry/shopping items land at the bottom.
+        // Use `.estimate` so pending-write docs (whose server timestamp hasn't landed yet)
+        // sort at their eventual position immediately — otherwise a new item briefly appears
+        // at the top with a null timestamp, then jumps to the bottom when the server confirms.
+        // Docs missing CreatedAt (legacy) sort to the top.
         let sortedDocs = docs.sorted { a, b in
-            let aTime = (a.data()["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
-            let bTime = (b.data()["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
-            return aTime > bTime
+            let aTime = (a.data(with: .estimate)["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
+            let bTime = (b.data(with: .estimate)["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
+            return aTime < bTime
         }
 
         // Preserve the sorted order across parallel fetches by tagging each with its index.
@@ -479,19 +551,39 @@ class DataManager: ObservableObject {
         let pantryNames = Set(pantryIngredients.map { $0.name.lowercased() })
         let shoppingNames = Set(shoppingListIngredients.map { $0.name.lowercased() })
 
+        // Missing = not already in the pantry and not already on the list, kept in recipe order.
+        // We filter here, so the per-item "already on the list?" query in addIngredientToShoppingList
+        // isn't needed on this path — one fewer round-trip per ingredient.
         let missing = recipe.ingredients.filter { ingredient in
             let key = ingredient.name.lowercased()
             return !pantryNames.contains(key) && !shoppingNames.contains(key)
         }
+        guard !missing.isEmpty else { return }
 
-        // Fire all writes concurrently so icons update near-simultaneously,
-        // not one-by-one as sequential awaits complete.
-        await withTaskGroup(of: Void.self) { group in
-            for ingredient in missing {
-                group.addTask { [weak self] in
-                    await self?.addIngredientToShoppingList(name: ingredient.name)
-                }
-            }
+        // Resolve each to its (deduped) /Ingredients ref in parallel, preserving recipe order.
+        let resolved = await resolveIngredientsPreservingOrder(missing)
+        guard !resolved.isEmpty else { return }
+
+        // Write every row in a single atomic batch — one round-trip instead of one write per item,
+        // which is what caused the delay and the icons updating one-by-one. `CreatedAt` is stamped
+        // with strictly increasing client timestamps so the list keeps recipe order: a shared
+        // serverTimestamp() across a batch resolves to the same instant for every doc and would
+        // sort arbitrarily (the "random order" you saw).
+        let shoppingRef = db.collection("Users").document(currentUserId).collection("ShoppingList")
+        let batch = db.batch()
+        let base = Date()
+        for (index, entry) in resolved.enumerated() {
+            let doc = shoppingRef.document()
+            batch.setData([
+                "Ingredient": entry.ref,
+                "CreatedAt": Timestamp(date: base.addingTimeInterval(Double(index) * 0.001))
+            ], forDocument: doc)
+        }
+
+        do {
+            try await batch.commit()
+        } catch {
+            await report(error, context: "Adding to shopping list")
         }
     }
 

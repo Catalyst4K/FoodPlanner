@@ -29,14 +29,12 @@ struct ShoppingListView: View {
                 LazyVStack(spacing: 0) {
                     listContent
                     addRow
+                    tapToAddSpacer
                 }
             }
         }
         .padding(.horizontal)
         .navigationBarHidden(true)
-        .onTapGesture {
-            UIApplication.shared.endEditing()
-        }
         .onChange(of: dataManager.shoppingListIngredients.map(\.id)) { _, newIds in
             hiddenIds = hiddenIds.intersection(Set(newIds))
         }
@@ -178,6 +176,21 @@ struct ShoppingListView: View {
         .onChange(of: isAddFieldFocused) { was, _ in
             if was { commit() }
         }
+    }
+
+    // Fills the empty area below the add row. Tap toggles: focuses the add field when
+    // idle, dismisses the keyboard when already typing.
+    private var tapToAddSpacer: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .frame(minHeight: 300)
+            .onTapGesture {
+                if isAddFieldFocused {
+                    isAddFieldFocused = false
+                } else {
+                    isAddFieldFocused = true
+                }
+            }
     }
 
     // MARK: - Actions
