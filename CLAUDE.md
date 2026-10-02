@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
+**Roadmap:** planned work, review findings and agreed decisions live in `docs/IMPLEMENTATION_PLAN.md` — read it before starting any feature or refactor, and tick off tasks there as they land.
+
 FoodPlanner is an iOS SwiftUI app (iOS 26.0 deployment target, Swift 5) for managing recipes, a pantry, and a shopping list, backed by Firebase (Auth + Firestore). There is no `Package.swift` — dependencies (FirebaseCore, FirebaseAuth, FirebaseFirestore, FirebaseStorage) are resolved via Swift Package Manager integrated directly into the Xcode project (`FoodPlanner.xcodeproj`).
 
 `FoodPlanner/GoogleService-Info.plist` is required to run the app (Firebase config) but is gitignored and not tracked — it must exist locally, copied in by the developer, before building.
