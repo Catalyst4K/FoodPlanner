@@ -1,6 +1,6 @@
 # FoodPlanner — Implementation Plan
 
-_Written 2026-10-02 against `main` @ `fd4101f`. Audience: the agent (or person) implementing this, plus Callum reviewing it._
+_Written 2026-10-02 against `main` @ `fd4101f`; Phase R + Appendices G/H added 2026-10-07. Audience: the agent (or person) implementing this, plus Callum reviewing it._
 
 This document is the single source of truth for "what to build next and how". It contains:
 
@@ -9,7 +9,9 @@ This document is the single source of truth for "what to build next and how". It
 3. [Findings](#3-findings) — every issue found in the review, with file references
 4. [Decisions](#4-decisions-defaults-chosen) — choices already made (with defaults Callum can override)
 5. [Phases](#5-phases) — the ordered work, broken into PR-sized tasks with acceptance criteria
-6. [Appendices](#appendices) — schema v2 spec, security rules draft, normalisation spec, error-message table
+6. [Appendices](#appendices) — schema v2 spec, security rules draft, normalisation spec, error-message table, units, release checklist, **working agreement (G)**, **licence + README templates (H)**
+
+Start with **Phase R** (repository foundations). The repo is public, so licensing and security settings come before feature work.
 
 ---
 
@@ -130,6 +132,20 @@ Severity: 🔴 must fix before any external users · 🟠 should fix soon · �
 | H6 | 🟡 | `AppIcon.appiconset` has no image. Bundle ID is `Callum.FoodPlanner` (valid, but changing it later means re-registering the Firebase iOS app). |
 | H7 | 🟡 | Swift 5 language mode, no strict concurrency checking. |
 
+### 3.7 Repository, licensing & standards (the repo is public)
+
+| # | Sev | Finding |
+|---|---|---|
+| R1 | 🔴 | **No licence.** With no `LICENSE`, the code is "all rights reserved" by default. That's legally fine, but readers can't tell whether it was deliberate, and nothing states who holds the copyright. |
+| R2 | 🔴 | **`GoogleService-Info.plist` is in the public git history.** It was added in `e04ad85` and deleted in `d4a87d5`, but deleting a file doesn't remove it from history. Firebase iOS config values are identifiers rather than true secrets, but together with permissive Firestore rules (S1) they're everything an attacker needs to read or write the database directly. Rewriting history doesn't help once a public repo has been cloned or cached; mitigate on the backend instead (Task R.2). |
+| R3 | 🟠 | **No README.** For a portfolio piece this is the first (often only) thing a reviewer reads. |
+| R4 | 🟠 | No `SECURITY.md`, no private vulnerability reporting, no secret-scanning push protection, no branch protection, no Dependabot, no CodeQL. |
+| R5 | 🟠 | Commits made from the Mac use a **misspelled author email**, so they aren't linked to the GitHub account. They don't show on the contribution graph or as authored by the profile, which undercuts the portfolio purpose. |
+| R6 | 🟡 | Ten files carry Xcode's `// Created by …` template headers, several with the **wrong filename** (`IngredientItem.swift` says `NewIngredient.swift`, `RecipeItem.swift` says `NewRecipie.swift`). |
+| R7 | 🟡 | No formatter or linter config, no `.editorconfig`, no single entry point for common commands. |
+| R8 | 🟡 | No third-party licence attribution. The Firebase iOS SDK and its transitive packages (Apache-2.0, BSD, MIT, zlib, ISC/OpenSSL…) require their notices to be reproduced when the app is distributed. |
+| R9 | 🟡 | No decision log, no changelog, no release tags. |
+
 ### 3.6 Testing
 
 | # | Sev | Finding |
@@ -154,6 +170,11 @@ The implementer should proceed with these defaults. Callum can override any of t
 | DEC-7 | Bundle ID | **Decide before Phase 5.** Recommendation: `com.callumjones.foodplanner` (or keep `Callum.FoodPlanner` — it's valid). Changing it requires registering a new iOS app in Firebase and replacing `GoogleService-Info.plist`. **[Callum]** |
 | DEC-8 | Week start for meal planner | **Monday** (UK). |
 | DEC-9 | Units | **Metric-first**, free-text unit allowed; known units normalised (Appendix E). |
+| DEC-10 | Licence | **All rights reserved, source visible for evaluation** (Appendix H.1). This repo deliberately differs from WingLog's GPL-3.0. Callum's goal here is ownership plus a portfolio, not reuse. The app is headed for the App Store, where GPL terms are widely considered incompatible with Apple's distribution terms for anyone redistributing. And there's no outside contribution to protect. If Callum later wants it open-source, GPL-3.0 + `COPYRIGHT` as in WingLog, or MIT, are drop-in swaps. **[Callum to confirm]** |
+| DEC-11 | Outside contributions | **Not accepted** (issues welcome). That keeps sole copyright simple and avoids WingLog's inbound-MIT arrangement, which only matters for an open-source licence. |
+| DEC-12 | Where development docs live | **In this public repo**, under `docs/` (plan, decision log). This also differs from WingLog, which keeps them in a private repo: for a portfolio, visible planning and decision records are part of what's being shown. Nothing secret goes in them (security rules for docs are in Appendix G). |
+| DEC-13 | Branching | **Trunk-based.** Protected `main` (PR + green CI required, admins included); short-lived `feature/<name>` and `fix/<name>` branches. Add a `develop` branch only if TestFlight releases become frequent enough to need batching. One person on one codebase doesn't need WingLog's three-branch model yet. |
+| DEC-14 | Formatting / lint tooling | **Apple's `swift-format`** (ships with Xcode 16+, so no extra dependency) for both formatting and linting. Add SwiftLint later only if a rule is needed that swift-format lacks. |
 
 ---
 
@@ -162,6 +183,9 @@ The implementer should proceed with these defaults. Callum can override any of t
 ### 5.0 Order and dependencies
 
 ```
+Phase R  Repository foundations (licence, security settings, README, standards, CI) — START HERE
+   │       R.1–R.4 first (public-repo exposure); R.5+ alongside Phase 0–1
+   ▼
 Phase 0  Housekeeping ──────────────┐
 Phase 1  Data layer v2 ─────────────┼─► Phase 2 Security rules ─► Phase 5 Release readiness ─► TestFlight
 Phase 3  Auth & account (needs 1.x for 3.5 deletion) ──┘                    ▲
@@ -171,6 +195,80 @@ Phase 8  CI & test infra — 8.1 can start any time; 8.3+ after 1
 ```
 
 Phases 0, 3.1–3.4 and 8.1 can run in parallel with Phase 1. Everything else waits for Phase 1 to merge.
+
+---
+
+### Phase R — Repository foundations: licence, security, presentation, standards
+
+**Why first:** the repo is already public, with no licence, no security settings and the Firebase config in its history. It's also meant to work as a portfolio piece, so the README and visible engineering standards matter as much as the code. Most of these tasks are docs and config, so they're **[cloud-ok]** unless tagged otherwise.
+
+The model is the WingLog repo's setup, **adapted rather than copied**. Each task notes where and why FoodPlanner differs.
+
+#### R-A: Ownership & licensing
+
+- [ ] **R.1 Licence + copyright** [cloud-ok] (R1, DEC-10, DEC-11)
+  - `LICENSE`: the all-rights-reserved text in **Appendix H.1**. It's short and plain-English; don't use an invented "source-available" licence with clauses that conflict with GitHub's terms.
+  - `COPYRIGHT`: one line of notice (`Copyright © 2025–2026 Callum Jones. All rights reserved.`) plus a short "why this file exists" note, the third-party pointer, and the trademark disclaimer (Appendix H.2). As in WingLog, `COPYRIGHT` and `LICENSE` are the authoritative statement, so there are **no per-file headers**.
+  - `CONTRIBUTING.md`: short and specific to this repo. It's a personal portfolio project, issues and suggestions are welcome, and pull requests aren't accepted because the code isn't open-licensed (link `LICENSE`). Point at `CLAUDE.md` as the working agreement. Don't copy WingLog's inbound-MIT section: it exists to protect a GPL dual-licence, which this repo doesn't have.
+  - ✅ GitHub's sidebar shows the licence as "Other" (expected for a custom all-rights-reserved file); the README licence section links both files.
+- [ ] **R.2 Contain the leaked Firebase config** 🔴 [Callum] (R2)
+  - Google Cloud console ▸ APIs & Services ▸ Credentials ▸ the iOS API key: add an **iOS app restriction** (bundle ID) and an **API restriction** limiting it to the APIs Firebase actually uses (Identity Toolkit, Token Service, Cloud Firestore, Firebase Installations, Firebase App Check, Cloud Storage for Firebase once 6.3 lands).
+  - Ship Phase 2 (security rules) as the first code change after Phase 1. Until then, consider pulling Phase 2 forward with a stop-gap owner-only ruleset (Appendix B without validation) so the exposed config can't be used against other users' data.
+  - Check the repo's Security tab for an existing secret-scanning alert on the old commit. Close it as "revoked/mitigated" with a note once the key is restricted.
+  - Don't rewrite history (forks and caches already have it); the key restrictions plus security rules are the real fix. Record this in the decision log (R.8).
+  - Plan App Check (5.4) for before public TestFlight.
+- [ ] **R.3 Strip template file headers** [Mac] (R6) — Remove the `//\n//  X.swift\n//  FoodPlanner\n//\n//  Created by …\n//` blocks from all 10 files. Add `FoodPlanner.xcodeproj/xcshareddata/IDETemplateMacros.plist` with an empty `FILEHEADER` so Xcode stops generating them for new files. ✅ `grep -rn "Created by" FoodPlanner*` is empty.
+- [ ] **R.4 Fix commit identity** [Callum] (R5) — `git config --global user.email` → the GitHub **noreply** address (`<id>+Catalyst4K@users.noreply.github.com`, under GitHub ▸ Settings ▸ Emails), which keeps a real email out of public history. Also enable "Block command line pushes that expose my email". Add a `.mailmap` mapping the misspelled address to the canonical identity so `git log`/`shortlog` read correctly. GitHub's contribution graph doesn't use `.mailmap`, so past commits stay unlinked; accept that rather than rewriting public history.
+
+#### R-B: GitHub security settings
+
+- [ ] **R.5 `SECURITY.md`** [cloud-ok] — Written for *this* app's real risk surface, not WingLog's (no SimConnect, no local files; instead accounts and a cloud backend). Include:
+  - Reporting via GitHub private vulnerability reporting, not public issues; best-effort solo response time; no bounty.
+  - **In scope:** Firestore/Storage security rules (reading or modifying another user's data, bypassing validation, reading unshared recipes); auth flows (account takeover, account-deletion leaving data behind); shared-recipe content able to do anything beyond being displayed as text; a leaked credential in the repo or its history; the app's dependency supply chain.
+  - **Out of scope:** the public Firebase iOS config itself (it's an identifier, protected by key restrictions, rules and App Check; explain this so nobody reports it in good faith); vulnerabilities in Firebase, iOS or Google Cloud themselves; attacks that need an unlocked device; missing hardening with no demonstrated impact.
+  - Supported versions: latest TestFlight / App Store build and `main`.
+- [ ] **R.6 `scripts/github-repo-security.sh`** [cloud-ok to write, Callum to run] — An idempotent `gh api` script, as in WingLog, so the settings live in the repo rather than as one-off console clicks. **Default `REPO` must be `Catalyst4K/FoodPlanner`.** WingLog's copy defaults to `Catalyst4K/flightdeck`, so don't carry that over. Applies:
+  - Dependabot alerts + automated security fixes; secret scanning + **push protection**; private vulnerability reporting.
+  - Branch protection on `main` per DEC-13: PR required (0 approvals), required checks = the CI job names from R.10 (`build-test`, `rules`), `enforce_admins: true`, no force-push, no deletion.
+  - `delete_branch_on_merge: true`. Disable Wiki and Projects if unused.
+  - Repo metadata: description, homepage (the GitHub Pages privacy page from 5.3 once it exists), topics (`ios`, `swift`, `swiftui`, `firebase`, `firestore`, `swift-concurrency`, `portfolio`).
+  - Prints the resulting state at the end. Only enable the branch-protection part once R.10's checks exist and have passed at least once; required checks that never report would block every merge.
+- [ ] **R.7 `.github/dependabot.yml`** [cloud-ok] — `github-actions` (monthly) and `npm` in `/firebase` (weekly, grouped minor+patch, majors separate). For Swift packages, add the `swift` ecosystem, then **verify it actually raises PRs for an Xcode-project-embedded `Package.resolved`**. Its support for `.xcodeproj` (as opposed to `Package.swift`) is limited. If it doesn't, drop the entry and add a monthly "check Firebase SDK releases" note to `CLAUDE.md`'s dependency rule instead. Commit prefixes `deps:` / `ci:`.
+
+#### R-C: Standards (the working agreement)
+
+- [ ] **R.8 Decision log + changelog** [cloud-ok] (R9)
+  - `docs/decisions.md`: dated entries (`## YYYY-MM-DD — Title`, then context, decision, consequences). Backfill DEC-1…DEC-14 from §4 of this plan, plus the R.2 history decision. From now on, any decision that changes architecture, data leaving the device, dependencies, or licensing gets an entry **before** it's built.
+  - `CHANGELOG.md` in Keep a Changelog format, starting at `0.1.0` for the current state. Tag releases `v<marketing>+<build>` (e.g. `v1.0.0+3`) when a build goes to TestFlight.
+- [ ] **R.9 Rewrite `CLAUDE.md` as the working agreement** [cloud-ok] — Keep the existing architecture content (updated as Phase 1 lands) and add **Rules**, **Security** and **Testing** sections from **Appendix G**. These are written for a SwiftUI + Firebase app, not translated line by line from WingLog. They also apply to human contributors; say so.
+- [ ] **R.10 Tooling & single entry point** [Mac] (R7, DEC-14)
+  - `.swift-format` at the root: 4-space indent, 120 line length, and the opt-in rules `NeverForceUnwrap`, `NeverUseForceTry` and `NeverUseImplicitlyUnwrappedOptionals` turned on. Tests may relax them: give `FoodPlannerTests/` and `FoodPlannerUITests/` their own nested `.swift-format` with those three set to `false`. Run `swift format --in-place --recursive FoodPlanner FoodPlannerTests FoodPlannerUITests` once **in its own commit** (pure formatting, nothing else), and list that commit's SHA in `.git-blame-ignore-revs` so `git blame` skips it.
+  - `.editorconfig` (Swift 4 spaces, YAML/JSON 2 spaces, LF line endings, final newline).
+  - `Makefile` as the single command entry point, referenced from the README and `CLAUDE.md`. iOS projects have no `package.json`, so this plays that role: `make format`, `make lint` (`swift format lint --strict --recursive …`), `make build`, `make test` (unit), `make test-ui`, `make coverage` (unit with coverage, then the ratchet check), `make emulators`, `make rules-test`, `make licenses`, `make check` (the full checkpoint battery: lint + build with warnings as errors + unit + coverage + rules). The simulator is a variable defaulting to one that exists on Xcode 26.
+  - `.gitignore` hardening: add `xcuserdata/`, `node_modules/`, `.firebase/`, `firebase-debug*.log`, `firestore-debug.log`, `ui-debug.log`, `*.p8`, `*.p12`, `*.mobileprovision`, `*.cer`, `AuthKey_*.p8`, `.env`, `*-service-account*.json`, `/build-output/`, `*.xcresult`. Remove `Package.resolved` (Task 0.5).
+- [ ] **R.11 CI** [cloud-ok to write; Callum adds nothing — no secrets needed] — Replaces 8.1/8.2.
+  - **No secrets in CI at all.** Commit `ci/GoogleService-Info.plist` with obviously fake values pointing at the emulator project `demo-foodplanner`. Use a value for `API_KEY` that does *not* match Google's `AIza…` key pattern, or push protection will block it; confirm `FirebaseApp.configure()` accepts it. CI copies it into `FoodPlanner/` before building. Fork PRs can then run everything safely, and there's nothing to leak.
+  - `.github/workflows/ci.yml`, on push to `main` and on PRs:
+    - `lint` (macOS): `make lint`.
+    - `build-test` (macOS, latest image with Xcode 26): build with `SWIFT_TREAT_WARNINGS_AS_ERRORS=YES`; unit tests with `-enableCodeCoverage YES`; coverage ratchet (R.13); upload the `.xcresult` as an artifact on failure. Cache SPM checkouts keyed on `Package.resolved`.
+    - `rules` (Ubuntu): Node 22 + Java 21, `npm ci` in `firebase/`, `firebase emulators:exec --project demo-foodplanner --only firestore,storage "npm test"`.
+    - `ui` (macOS, after 8.3/8.4 exist): start the emulators, run XCUITests against them. Start it as non-required; make it required once it's been green for a couple of weeks.
+  - `.github/workflows/codeql.yml`: languages **`swift`** (macOS, `build-mode: manual` running the same `xcodebuild build`) and **`actions`** (scans the workflows themselves for injection mistakes), plus `javascript-typescript` for `firebase/`. Use `queries: security-extended`, weekly schedule plus push/PR to `main`, least-privilege `permissions`.
+  - All workflows: top-level `permissions: contents: read`; pin third-party actions to a full commit SHA (with a `# vX.Y` comment, so Dependabot still updates them); never use `pull_request_target`.
+  - Add CI and CodeQL badges to the README.
+- [ ] **R.12 PR template** [cloud-ok] — `.github/pull_request_template.md` (this repo will be worked on by agent sessions, so make it a checklist they fill in): Summary · Linked plan task (e.g. "Phase 1.4") · Test layers touched (unit / integration / rules / UI — at least one, or why none) · Security checklist (no secrets or real user data in fixtures; rules and rules tests updated if a Firestore path changed; user content rendered as plain text) · Built and tested on Xcode? (yes/no; cloud sessions must say no) · Screenshots for UI changes (light + dark).
+- [ ] **R.13 Coverage ratchet** [Mac] — `scripts/check-coverage.sh` reads `xcrun xccov view --report --json` from the test `.xcresult`. It computes line coverage for **business logic only**: `FoodPlanner/Models/**` and `FoodPlanner/ViewModels/**`, excluding `DataManager.swift`'s Firestore plumbing until integration tests (8.5) cover it. Compare against the number in `.coverage-threshold` and fail if lower. The threshold only ever goes up: raise it in the same PR that raises coverage, and never lower it to make a build green. The target for pure logic is effectively 100%; Views are excluded and covered by UI tests instead.
+
+#### R-D: Presentation (portfolio)
+
+- [ ] **R.14 README** [cloud-ok for text; Mac for screenshots] (R3) — Structure in **Appendix H.3**. It's written for two readers: a reviewer evaluating Callum's iOS skills (lead with what the app does, then **Engineering highlights**, which link to the actual code that demonstrates each point) and a developer who wants to build it (which, thanks to R.11 + 8.3, needs no Firebase account at all). Keep claims factual and verifiable: only list a highlight once the code for it has merged, and grow the section as phases land.
+- [ ] **R.15 Screenshots** [Mac] — An XCUITest class `ScreenshotTests` behind a `-screenshots` launch argument. It runs against the emulator seeded with a fixed demo account (realistic, made-up recipes; no real personal data). It captures Recipes, Recipe detail (portrait + landscape), Pantry, Shopping (grouped), and later Plan, in light and dark, saving PNGs to `docs/screenshots/` through `make screenshots`. Re-run it before each release so the README never shows a stale UI. These images can also serve as the App Store screenshots.
+- [ ] **R.16 Third-party licences** [Mac] (R8) — `scripts/generate-third-party-licenses.sh` (`make licenses`) reads `Package.resolved` for the exact pins. It then reads each package's `LICENSE`/`NOTICE` from Xcode's SourcePackages checkout and writes:
+  - `THIRD-PARTY-LICENSES.md` at the repo root: one section per package with name, version, licence (SPDX) and full text, and Apache `NOTICE` text where present. Header: "generated — don't edit".
+  - `FoodPlanner/Resources/Acknowledgements.json`, which a new **Account ▸ Acknowledgements** screen renders. Apache-2.0 requires the notices to ship *with* the app, not just in the repo.
+  - CI (`build-test`) regenerates and fails if either file is out of date relative to `Package.resolved`.
+  - Rule for `CLAUDE.md`: new dependencies must be MIT, BSD, Apache-2.0, zlib, ISC or similarly permissive. **No GPL/AGPL/LGPL** (App Store distribution plus the all-rights-reserved licence).
+- [ ] **R.17 Privacy manifest** [Mac] — Add `FoodPlanner/PrivacyInfo.xcprivacy`, required for App Store submission since 2024. Declare `NSPrivacyTracking = false`, the collected data types (email address and other user content, linked to the user, for app functionality, not for tracking), and required-reason API usage (`NSPrivacyAccessedAPICategoryUserDefaults` with reason `CA92.1`, since `@AppStorage` is used from 4.2). Firebase's own SDKs ship their own manifests. The privacy policy (5.3), App Privacy labels, this manifest and the README's "Data & privacy" table must agree, so update all four together.
 
 ---
 
@@ -351,7 +449,7 @@ This phase is fully doable in a Linux container (Node 22 + Java 21 present; the 
 
 - [ ] **5.1 App icon** [Callum] — Single 1024×1024 PNG in `AppIcon.appiconset` (Xcode 26 single-size icon; optionally dark/tinted variants via Icon Composer).
 - [ ] **5.2 Identity** [Callum] — Resolve DEC-7 (bundle ID). Set display name: `INFOPLIST_KEY_CFBundleDisplayName = FoodPlanner` in Build Settings. Set version 1.0 build 1.
-- [ ] **5.3 Privacy** [Callum] — Host a privacy policy (what's collected: email, recipes/pantry/list content; stored in Google Firebase; deletion via in-app account deletion). Fill App Privacy labels in App Store Connect (Contact Info → email; User Content → other user content; linked to user; not used for tracking). Put the URL into the constant from 3.4.
+- [ ] **5.3 Privacy** [Callum] — Host a privacy policy. Simplest option: `docs/privacy.md` in this repo, published with GitHub Pages; that becomes the App Store privacy URL and the repo homepage (R.6). It should cover what's collected (email, recipes/pantry/list content), that it's stored in Google Firebase, and deletion via in-app account deletion. Keep it consistent with R.17's manifest. Fill App Privacy labels in App Store Connect (Contact Info → email; User Content → other user content; linked to user; not used for tracking). Put the URL into the constant from 3.4.
 - [ ] **5.4 App Check** [Mac + Callum] (S4) — Add `FirebaseAppCheck` package product; App Attest provider in release, debug provider in DEBUG (print token for console allow-list). Enable enforcement for Firestore in the console **only after** monitoring shows verified traffic.
 - [ ] **5.5 Budget alert** [Callum] — Google Cloud console ▸ Billing ▸ Budgets: alert at a small monthly amount so a bug or abuse can't run up a bill.
 - [ ] **5.6 TestFlight** [Callum] — Archive, upload, internal testing. Run through the manual checklist in **Appendix F**.
@@ -395,6 +493,8 @@ This phase is fully doable in a Linux container (Node 22 + Java 21 present; the 
 ---
 
 ### Phase 8 — CI & test infrastructure
+
+> 8.1 and 8.2 are **superseded by R.11**, which builds the same jobs into `ci.yml` with no secrets. They're kept here only for the detail.
 
 - [ ] **8.1 Rules CI** [cloud-ok] — `.github/workflows/firestore-rules.yml` on `ubuntu-latest`: `actions/setup-node@v4` (22), `actions/setup-java@v4` (21, temurin), cache `~/.cache/firebase/emulators`, `npm ci` in `firebase/`, `npx firebase emulators:exec --only firestore --project demo-foodplanner "npm test"` (a `demo-` project ID needs no credentials). Trigger on changes to `firestore.rules`, `storage.rules`, `firebase/**`.
 - [ ] **8.2 iOS CI** [cloud-ok to write, Callum to configure] — `.github/workflows/ios.yml` on a `macos-26` runner (or latest with Xcode 26): select Xcode, write `GoogleService-Info.plist` from a base64 repo secret `GOOGLE_SERVICE_INFO_PLIST_B64`, cache SPM (`~/Library/Developer/Xcode/DerivedData/**/SourcePackages`), run `xcodebuild test -only-testing:FoodPlannerTests` on an available simulator. Requires 0.5 (shared scheme + Package.resolved). UI tests job optional / nightly.
@@ -614,3 +714,116 @@ Convertible pairs for merging: g↔kg (×1000), ml↔l (×1000). Everything else
 - [ ] Dynamic Type at XXL on every screen — nothing truncated unusably
 - [ ] VoiceOver: every button has a label
 - [ ] Delete account → data gone, can't log in, shared recipes gone for others
+
+### Appendix G — Working agreement for `CLAUDE.md` (Task R.9)
+
+These are the sections to add to `CLAUDE.md`. They follow WingLog's shape (Rules, then Security, then Testing), but each rule is written for this codebase. Where a WingLog rule has no equivalent here (SimConnect, Electron IPC, Drizzle migrations, units at the IPC boundary), it's left out instead of being forced in.
+
+#### G.1 Rules
+
+- **Views never touch Firebase.** Only `DataManager` imports `FirebaseFirestore` (and `AuthViewModel` imports `FirebaseAuth`). Views read published state and call `DataManager` methods. A view that imports a Firebase module is a review failure.
+- **Firestore paths and field names live in one place**: a `FirestoreSchema` enum of constants (`collection.recipes`, `field.name`, …) introduced in Phase 1. No string literals for paths or fields anywhere else. A rename then becomes a one-line change plus a migration, not a grep hunt.
+- **Every schema change ships as a unit:** bump `SchemaVersion`, add the migration step, update `firestore.rules` **and** its tests, and update Appendix A of this plan and the schema section of `CLAUDE.md`, all in the same PR. Rules that lag the schema mean either a broken app (writes denied) or an open database.
+- **Anything that sends user data somewhere new is a decision, not an implementation detail.** That covers a new SDK (analytics, crash reporting, ads), a new Firebase product, or a new field others can see (like `OwnerName`). Record it in `docs/decisions.md` first, then update the privacy policy, `PrivacyInfo.xcprivacy`, the App Privacy labels and the README's data table together.
+- **Pure logic is Foundation-only and has tests.** Matching, parsing, formatting, sorting, grouping, date keys, merge rules: `static` functions or small types with no Firebase/SwiftUI import, as `DataManager`'s helpers already do.
+- **Observable state is `@MainActor`.** `DataManager`, `AuthViewModel` and form view models. No `DispatchQueue.main.async` to patch over isolation warnings; fix the isolation.
+- **No `!`, `try!` or `fatalError` in app code** (enforced by swift-format, R.10). Parse Firestore data defensively: a malformed doc is skipped and logged, never a crash.
+- **Optimistic UI must roll back.** Any view that changes local state ahead of a write handles the failure path (Task 4.6 sets the pattern).
+- **Accessibility identifiers** on every interactive element, `screen.element` style. Every image-only button gets an `accessibilityLabel`.
+- **Prefer boring.** Native SwiftUI components over custom overlays; one way of doing a thing. This is a small app maintained by one person.
+- **Commits:** imperative subject line ≤ 72 chars, optional area prefix (`recipes:`, `auth:`, `rules:`, `ci:`, `deps:`, `docs:`). One logical change per commit; formatting-only changes go in their own commit.
+
+#### G.2 Security
+
+The repo is public and the app is going to the App Store, so mistakes here are both visible and shipped. Treat security as part of finishing a change, not a separate pass.
+
+Before committing or pushing:
+
+- **Never commit secrets or signing material**: `GoogleService-Info.plist` (real one), App Store Connect API keys (`AuthKey_*.p8`), certificates (`.p12`, `.cer`), provisioning profiles, Firebase service-account JSON, `.env` files. The only committed plist is `ci/GoogleService-Info.plist` with fake values. The real Firebase config has already leaked once (finding R2), so this isn't hypothetical.
+- **Check what `git add` staged** (`git status`), and open any file whose name doesn't explain its contents.
+- **No real personal data in fixtures, seeds or screenshots.** Demo accounts use made-up names, `example.com` emails and invented recipes.
+
+When a change touches a trust boundary, actively look for the hole:
+
+- **The security rules are the backend.** There is no server: anything a client can do with the public config is limited only by `firestore.rules` / `storage.rules`. Client-side checks are for UX. Any new collection, field or query needs rules **and** rules tests (allow *and* deny cases) in the same PR. Never use broad `allow read, write: if request.auth != null`.
+- **Shared recipes are untrusted input from other users.** Render them only as plain text: `Text(someString)`, which doesn't parse markdown. Never pass them through `LocalizedStringKey`, `AttributedString(markdown:)` or a web view, because markdown links in a shared recipe would be a phishing vector. Enforce size limits in rules as well as in the form. Future URL fields (recipe source links) must be `https` only, checked before opening.
+- **Images (6.3):** downscale and re-encode on device (which also strips EXIF/location metadata) before upload; Storage rules enforce `image/*` and a size limit.
+- **Auth:** use Firebase Auth's APIs only. Never store passwords or tokens yourself (Firebase keeps them in the Keychain). Account deletion must remove the user's data (3.5). Password-reset messages never reveal whether an account exists.
+- **Logging:** use `os.Logger`, not `print`. User content and emails are logged with `privacy: .private` (or not at all). Release builds must not log document contents.
+- **Dependencies are supply chain.** Few, well-known packages (currently just Firebase). Every addition is a decision-log entry, must have a permissive licence (R.16), and `Package.resolved` is committed and pinned. Review Dependabot/Firebase release notes before bumping, and don't bump a major version without a full checkpoint run.
+- **CI never needs or sees secrets** (R.11). Never add a workflow using `pull_request_target`, and never add a repo secret "just for CI". If a future job genuinely needs one (e.g. TestFlight upload), it runs only on `push` to `main` in a protected environment.
+- **Docs are public too.** `docs/` notes and the decision log must not contain keys, project-internal URLs with tokens, or anyone's personal data.
+
+If you find something, say so plainly and fix or flag it. Don't quietly work around it.
+
+#### G.3 Testing
+
+Four layers; most changes need only one or two:
+
+| Layer | Where | Runs against | Covers |
+|---|---|---|---|
+| **Unit** | `FoodPlannerTests/` (Swift Testing) | nothing external | pure logic, view models, mapping, parsers |
+| **Integration** | `FoodPlannerTests/Integration/` (Swift Testing, skipped unless `FIREBASE_EMULATOR=1`) | Firestore + Auth emulators | `DataManager` reads/writes, batches, migration |
+| **Rules** | `firebase/test/` (Node, `@firebase/rules-unit-testing`) | Firestore/Storage emulators | every allow and deny path in the rules |
+| **Acceptance** | `FoodPlannerUITests/` (XCUITest, `-use-firebase-emulator`) | the built app + emulators | user-facing flows end to end |
+
+- **Every feature and every fix carries its own tests, in the same branch**, in each layer it touches. A fix without a regression test isn't finished. Pure logic gets tests with realistic values (real ingredient strings, real dates across DST), not placeholders.
+- **The coverage ratchet** (R.13) is a backstop for business logic. It only proves nothing dropped, not that the right things were tested. Never lower it.
+- **Never hit production Firebase from tests.** Everything runs against emulators under a `demo-` project ID.
+- **During iteration run only the relevant tests**; at checkpoints run `make check`. Checkpoints: opening or updating a PR, merging, archiving a TestFlight build.
+- **Cloud sessions can't build the app.** They must say so in the PR (template, R.12), and that PR can't merge until CI's `build-test` is green.
+
+### Appendix H — Licence, copyright and README templates
+
+#### H.1 `LICENSE` (all rights reserved)
+
+```
+Copyright © 2025–2026 Callum Jones. All rights reserved.
+
+This repository is published so that its source code can be read and evaluated,
+for example as part of a portfolio or job application. Publication does not grant
+any licence to it.
+
+You may view the source code on GitHub and, as GitHub's Terms of Service allow,
+fork it within GitHub. You may not copy, modify, distribute, sublicense, publish,
+or use the code or any substantial part of it, in source or compiled form, or
+build and distribute the app, without prior written permission from the
+copyright holder.
+
+Third-party components included in or used by this project are licensed under
+their own terms; see THIRD-PARTY-LICENSES.md.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.
+
+For permission requests, open an issue at
+https://github.com/Catalyst4K/FoodPlanner/issues.
+```
+
+(Not legal advice. If the app ever becomes commercial, a quick check with a solicitor is worth it.)
+
+#### H.2 `COPYRIGHT`
+
+Contents: the notice line; the app name and one-line description; "see LICENSE for terms"; a short note that this file plus `LICENSE` are authoritative and per-file headers deliberately aren't used (decision-log reference); a pointer to `THIRD-PARTY-LICENSES.md`; and a trademark disclaimer: "Apple, iPhone and iOS are trademarks of Apple Inc. Firebase is a trademark of Google LLC. FoodPlanner is an independent project and is not affiliated with or endorsed by either."
+
+#### H.3 README outline
+
+1. **Header:** icon, name, one-line pitch ("Plan meals around what's already in your kitchen: recipes, pantry and a shopping list that keep each other in sync."), and badges: CI, CodeQL, `iOS 26+`, `Swift 5`→`6`, `SwiftUI`, licence "All rights reserved".
+2. **Screenshots:** grid from R.15, light and dark.
+3. **Features:** short bullets that only claim what has shipped. Add the meal planner when Phase 7 lands.
+4. **Engineering highlights** (the portfolio section). Each item is 1–2 sentences with a link to the code:
+   - Real-time sync with Firestore snapshot listeners, plus optimistic UI with rollback.
+   - Security rules as the backend, with a rules test suite covering allow and deny cases.
+   - Firebase-free, unit-tested core logic (matching, parsing, normalisation), with a coverage ratchet.
+   - Swift Concurrency: a `@MainActor` data layer and atomic batched writes.
+   - The ingredient parser and quantity merging (once 6.1 has landed).
+   - Accessibility: VoiceOver labels, Dynamic Type, and UI tests driven by accessibility identifiers.
+   - CI with no secrets, emulator-backed tests, and CodeQL for Swift.
+5. **Architecture:** a Mermaid diagram (App → AuthViewModel → DataManager → Firestore/Auth; Views → DataManager; pure core ← DataManager) and a short paragraph per layer. Link `CLAUDE.md` for depth.
+6. **Data & privacy:** a "What leaves your device" table (email → Firebase Auth; recipes/pantry/list → Firestore under your account; shared recipes → readable by all signed-in users; photos → Firebase Storage), how to delete your account, and a link to the privacy policy.
+7. **Building from source:** Xcode 26, `make emulators`, copy `ci/GoogleService-Info.plist` into `FoodPlanner/`, run with `-use-firebase-emulator`. No Firebase account needed. Then `make test` / `make check`.
+8. **Project structure:** a short annotated tree.
+9. **Roadmap:** link to this plan and the changelog.
+10. **Licence:** "All rights reserved — see LICENSE. Source published for evaluation." Link `COPYRIGHT` and `THIRD-PARTY-LICENSES.md`.
+11. **Author:** name and GitHub profile (plus LinkedIn or portfolio site if wanted; no personal email).
