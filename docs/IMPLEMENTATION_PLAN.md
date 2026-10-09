@@ -161,9 +161,9 @@ The implementer should proceed with these defaults. Callum can override any of t
 
 | ID | Decision | Default |
 |---|---|---|
-| DEC-1 | Keep existing Firestore data through the schema change? | **Yes — write a one-time migration** (Task 1.6). If Callum confirms there's no data worth keeping, skip 1.6 and just delete the old data in the console. |
+| DEC-1 | Keep existing Firestore data through the schema change? | **Resolved 2026-10-09: No.** Nothing worth keeping, so no migration (task 1.6 skipped); delete the old data in the console. |
 | DEC-2 | What does "shared" mean? | **Public to every signed-in user of the app** (current behaviour). Friends/groups sharing is out of scope. |
-| DEC-3 | Fate of the global `/Ingredients` collection | **Retire it.** Ingredient names are stored inline. Leave existing docs (read-only) for the migration; stop writing to it. |
+| DEC-3 | Fate of the global `/Ingredients` collection | **Retire it** (resolved 2026-10-09). Ingredient names are stored inline; attributes such as nutrition go in a future read-only, owner-written `Catalogue/{ingredientKey}` collection joined on `IngredientKey`. |
 | DEC-4 | Ingredient identity | **Normalised name key** (Appendix C): trimmed, whitespace-collapsed, case- and diacritic-insensitive. Plurals ("egg" vs "eggs") are **not** merged (future work). |
 | DEC-5 | "Pantry match" ordering | **Fewest missing ingredients first**, then higher match ratio, then name (A→Z, localized). |
 | DEC-6 | Account entry point after nav refactor | **Gear button in each tab's toolbar opens Account as a sheet.** |
@@ -352,7 +352,7 @@ Split into these PRs, in order. 1.1–1.3 add pure, tested building blocks; 1.4�
   - Update `CLAUDE.md` "Firestore schema", "Listener/fetch-task race handling" and "Write ordering" sections — the latter two no longer apply; replace with: "Listeners parse synchronously; every multi-doc write uses a `WriteBatch`."
   - ✅ Rapidly adding the same item twice (or from two devices) produces one row. Ticking an item moves it atomically. Unit tests still pass.
 
-- [ ] **1.6 One-time v1 → v2 migration** [Mac] _(skip if DEC-1 says wipe)_
+- [x] **1.6 One-time v1 → v2 migration** _(skipped: DEC-1 resolved as "no migration", see `docs/decisions.md` 2026-10-09)_ [Mac]
   - New file `FoodPlanner/Models/LegacyMigrator.swift`, called once from `DataManager.init` (fire-and-forget `Task`) after listeners are attached.
   - Guard: read `/Users/{uid}`; if `SchemaVersion >= 2`, return.
   - Steps (each idempotent, so an interrupted run is safe to repeat):
