@@ -73,43 +73,15 @@ struct PantryView: View {
     }
 
     private var addRow: some View {
-        HStack(spacing: 8) {
-            Button {
-                commit()
-                isAddFieldFocused = true
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundColor(.gray)
-            }
-            .buttonStyle(.plain)
-
-            TextField("Add ingredient", text: $newItemText)
-                .accessibilityIdentifier("pantry.addField")
-                .focused($isAddFieldFocused)
-                .submitLabel(.return)
-                .onSubmit(commit)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 10)
-        .onChange(of: isAddFieldFocused) { was, _ in
-            // Commit on focus loss so tapping away also saves.
-            if was { commit() }
-        }
+        QuickAddRow(
+            text: $newItemText, isFocused: $isAddFieldFocused, style: .list, fieldIdentifier: "pantry.addField",
+            onCommit: commit)
     }
 
     // Fills the empty area below the add row. Tap toggles: focuses the add field when
     // idle, dismisses the keyboard when already typing.
     private var tapToAddSpacer: some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .frame(minHeight: 300)
-            .onTapGesture {
-                if isAddFieldFocused {
-                    isAddFieldFocused = false
-                } else {
-                    isAddFieldFocused = true
-                }
-            }
+        TapToFocusSpacer(isFocused: $isAddFieldFocused, minHeight: 300)
     }
 
     // MARK: - Actions

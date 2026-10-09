@@ -246,7 +246,7 @@ The model is the WingLog repo's setup, **adapted rather than copied**. Each task
   - `.editorconfig` (Swift 4 spaces, YAML/JSON 2 spaces, LF line endings, final newline).
   - `Makefile` as the single command entry point, referenced from the README and `CLAUDE.md`. iOS projects have no `package.json`, so this plays that role: `make format`, `make lint` (`swift format lint --strict --recursive …`), `make build`, `make test` (unit), `make test-ui`, `make coverage` (unit with coverage, then the ratchet check), `make emulators`, `make rules-test`, `make licenses`, `make check` (the full checkpoint battery: lint + build with warnings as errors + unit + coverage + rules). The simulator is a variable defaulting to one that exists on Xcode 26.
   - `.gitignore` hardening: add `xcuserdata/`, `node_modules/`, `.firebase/`, `firebase-debug*.log`, `firestore-debug.log`, `ui-debug.log`, `*.p8`, `*.p12`, `*.mobileprovision`, `*.cer`, `AuthKey_*.p8`, `.env`, `*-service-account*.json`, `/build-output/`, `*.xcresult`. Remove `Package.resolved` (Task 0.5).
-- [ ] **R.11 CI** _(partial: build-test and CodeQL done; lint, coverage and licence checks, rules and ui jobs pending)_ [cloud-ok to write; Callum adds nothing — no secrets needed] — Replaces 8.1/8.2.
+- [x] **R.11 CI** _(done: `lint`, `build-test` with coverage ratchet and licence check, `rules`, CodeQL, and a `ui` job that runs on pushes to `main` and on demand rather than on every PR)_ [cloud-ok to write; Callum adds nothing — no secrets needed] — Replaces 8.1/8.2.
   - **No secrets in CI at all.** Commit `ci/GoogleService-Info.plist` with obviously fake values pointing at the emulator project `demo-foodplanner`. Use a value for `API_KEY` that does *not* match Google's `AIza…` key pattern, or push protection will block it; confirm `FirebaseApp.configure()` accepts it. CI copies it into `FoodPlanner/` before building. Fork PRs can then run everything safely, and there's nothing to leak.
   - `.github/workflows/ci.yml`, on push to `main` and on PRs:
     - `lint` (macOS): `make lint`.
@@ -261,7 +261,7 @@ The model is the WingLog repo's setup, **adapted rather than copied**. Each task
 
 #### R-D: Presentation (portfolio)
 
-- [ ] **R.14 README** [cloud-ok for text; Mac for screenshots] (R3) — Structure in **Appendix H.3**. It's written for two readers: a reviewer evaluating Callum's iOS skills (lead with what the app does, then **Engineering highlights**, which link to the actual code that demonstrates each point) and a developer who wants to build it (which, thanks to R.11 + 8.3, needs no Firebase account at all). Keep claims factual and verifiable: only list a highlight once the code for it has merged, and grow the section as phases land.
+- [x] **R.14 README** [cloud-ok for text; Mac for screenshots] (R3) — Structure in **Appendix H.3**. It's written for two readers: a reviewer evaluating Callum's iOS skills (lead with what the app does, then **Engineering highlights**, which link to the actual code that demonstrates each point) and a developer who wants to build it (which, thanks to R.11 + 8.3, needs no Firebase account at all). Keep claims factual and verifiable: only list a highlight once the code for it has merged, and grow the section as phases land.
 - [x] **R.15 Screenshots** _(done for portrait, light and dark; the landscape recipe-detail shot isn't automated: `XCUIDevice` rotation leaves the app in its portrait layout in the simulator, although rotating by hand works. Revisit if it matters.)_ [Mac] — An XCUITest class `ScreenshotTests` behind a `-screenshots` launch argument. It runs against the emulator seeded with a fixed demo account (realistic, made-up recipes; no real personal data). It captures Recipes, Recipe detail (portrait + landscape), Pantry, Shopping (grouped), and later Plan, in light and dark, saving PNGs to `docs/screenshots/` through `make screenshots`. Re-run it before each release so the README never shows a stale UI. These images can also serve as the App Store screenshots.
 - [x] **R.16 Third-party licences** [Mac] (R8) — `scripts/generate-third-party-licenses.sh` (`make licenses`) reads `Package.resolved` for the exact pins. It then reads each package's `LICENSE`/`NOTICE` from Xcode's SourcePackages checkout and writes:
   - `THIRD-PARTY-LICENSES.md` at the repo root: one section per package with name, version, licence (SPDX) and full text, and Apache `NOTICE` text where present. Header: "generated — don't edit".
@@ -274,26 +274,26 @@ The model is the WingLog repo's setup, **adapted rather than copied**. Each task
 
 ### Phase 0 — Housekeeping (low risk, do first to prove the build loop)
 
-- [ ] **0.1 Remove Core Data template** [Mac]
+- [x] **0.1 Remove Core Data template** [Mac]
   - Delete `FoodPlanner/Persistence.swift` and `FoodPlanner/FoodPlanner.xcdatamodeld/`.
   - In `FoodPlannerApp.swift` remove `persistenceController` (L88) and the `.environment(\.managedObjectContext, …)` modifier (L107).
   - Remove the "Core Data is present but effectively unused" paragraph from `CLAUDE.md`.
   - ✅ App builds, launches, all unit tests pass.
 
-- [ ] **0.2 Remove dead code** [Mac]
+- [x] **0.2 Remove dead code** [Mac]
   - Delete `Models/UserItem.swift` (`AppUser` — unused), `Helpers/Helpers.swift` (`endEditing` — unused; the keyboard-dismiss gesture uses `UIView.endEditing` directly), `FoodPlannerTests/FoodPlannerTests.swift` (placeholder).
   - In `AddRecipeView.swift` remove `editingRecipeId`, `onSave`, `isEditing` and the edit branches (`navigationTitle`, `actionLabel`, `actionIcon`, the `if let editingRecipeId` in `submit()`).
   - Leave `FirebaseStorage` linked (Phase 6.3 uses it).
   - ✅ `grep -rn "editingRecipeId\|onSave\|AppUser\|endEditing()" FoodPlanner` returns nothing except `UIView.endEditing` in `FoodPlannerApp.swift`.
 
-- [ ] **0.3 Fix entitlements** [Mac] — Replace `FoodPlanner/FoodPlanner.entitlements` contents with an empty `<dict/>` (keep the file — push notifications / Sign in with Apple may need it later). ✅ Builds and runs on a device.
+- [x] **0.3 Fix entitlements** [Mac] — Replace `FoodPlanner/FoodPlanner.entitlements` contents with an empty `<dict/>` (keep the file — push notifications / Sign in with Apple may need it later). ✅ Builds and runs on a device.
 
-- [ ] **0.4 Rename for clarity** [Mac]
+- [x] **0.4 Rename for clarity** [Mac]
   - `Views/RecipieListView.swift` → `Views/RecipeListScreen.swift`.
   - `RecipeListViewModel` → `RecipeFormViewModel` (type + file `ViewModels/RecipeFormViewModel.swift` + test file `FoodPlannerTests/RecipeFormViewModelTests.swift` + all references + `CLAUDE.md`).
   - ✅ `grep -rn "RecipeListViewModel\|RecipieListView" .` returns nothing.
 
-- [ ] **0.5 Reproducible builds** [Callum]
+- [x] **0.5 Reproducible builds** [Callum]
   - Remove `Package.resolved` from `.gitignore`; commit `FoodPlanner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`.
   - Xcode ▸ Product ▸ Scheme ▸ Manage Schemes ▸ tick **Shared** for `FoodPlanner`; commit `FoodPlanner.xcodeproj/xcshareddata/xcschemes/FoodPlanner.xcscheme`.
   - Update the simulator name in `CLAUDE.md` commands to one that exists on the installed Xcode.
@@ -308,13 +308,13 @@ The model is the WingLog repo's setup, **adapted rather than copied**. Each task
 
 Split into these PRs, in order. 1.1–1.3 add pure, tested building blocks; 1.4–1.5 switch `DataManager` over; 1.6 migrates data; 1.7 updates docs.
 
-- [ ] **1.1 `IngredientKey` normalisation** [Mac for tests; code is cloud-ok]
+- [x] **1.1 `IngredientKey` normalisation** [Mac for tests; code is cloud-ok]
   - New file `FoodPlanner/Models/IngredientKey.swift` (Foundation-only). Implements Appendix C: `IngredientKey.normalized(_:)` and `IngredientKey.documentID(for:)`.
   - New tests `FoodPlannerTests/IngredientKeyTests.swift` covering every rule in Appendix C (case, whitespace, diacritics, `/`, `%`, `.`/`..`, `__x__`, empty input, long input).
   - Switch the five static matchers in `DataManager` (L615–647) and `RecipeFormViewModel.addIngredient` dedupe to compare `IngredientKey.normalized` instead of `lowercased()`. Add tests: "Olive  Oil " matches "olive oil"; "Jalapeño" matches "jalapeno".
   - ✅ All existing + new tests pass.
 
-- [ ] **1.2 Firestore ↔ model mapping as pure functions** [Mac]
+- [x] **1.2 Firestore ↔ model mapping as pure functions** [Mac]
   - New file `FoodPlanner/Models/FirestoreMapping.swift` (Foundation-only — no `Timestamp`/`DocumentReference` types). Provides:
     - `static func recipe(from data: [String: Any], id: String, fallbackOwnerId: String) -> Recipe?` — returns nil if `Name` or `Ingredients` missing/wrong type (that's how v1 docs are detected and skipped).
     - `static func recipeFields(_ recipe: Recipe) -> [String: Any]` — `Name`, `Instructions`, `Ingredients` (array of maps per Appendix A). Excludes `OwnerId`/`IsShared`/timestamps (DataManager adds those).
@@ -323,13 +323,13 @@ Split into these PRs, in order. 1.1–1.3 add pure, tested building blocks; 1.4�
   - Add `servings: Int?` to `Recipe` now (optional, unused by UI until 6.1) so the schema doesn't churn twice.
   - Tests `FoodPlannerTests/FirestoreMappingTests.swift`: round-trip recipe with/without quantity/unit, order preserved, malformed data → nil, v1-shaped doc (no `Ingredients`) → nil, `OwnerId` fallback.
 
-- [ ] **1.3 Make `DataManager` `@MainActor`** [Mac]
+- [x] **1.3 Make `DataManager` `@MainActor`** [Mac]
   - Annotate `DataManager` with `@MainActor`. Remove now-redundant `await MainActor.run` / `@MainActor` on `report`/`clearError`. Firestore listener callbacks are delivered on the main queue; wrap their bodies in `MainActor.assumeIsolated { … }` if the compiler requires it.
   - `deinit`: cancel the fetch tasks too (D10) — or, after 1.4, delete them entirely.
   - Same for `AuthViewModel` (A5) — mark `@MainActor`.
   - ✅ Builds with no new warnings; app behaves identically.
 
-- [ ] **1.4 Switch recipes to inline ingredients** [Mac]
+- [x] **1.4 Switch recipes to inline ingredients** [Mac]
   - Rewrite `listenToUserRecipes`/`listenToSharedRecipes` to parse synchronously with `FirestoreMapping.recipe(from:…)`. No per-recipe `Task`, no subcollection fetch, no task groups. Keep the `CreatedAt` `.estimate` sort. With no async hydration, the fetch-task cancellation machinery (`userRecipesFetchTask`, `sharedRecipesFetchTask`) is deleted.
   - `addRecipe`: one `setData` with `recipeFields` + `OwnerId`, `IsShared: false`, `CreatedAt: serverTimestamp()`, `UpdatedAt: serverTimestamp()`. Return/propagate errors (see 1.5 for the error convention).
   - `updateRecipe`: one `updateData` with `recipeFields` + `UpdatedAt`. Atomic (D2 fixed).
@@ -340,7 +340,7 @@ Split into these PRs, in order. 1.1–1.3 add pure, tested building blocks; 1.4�
   - Delete: `buildRecipes`, `parseRecipeDoc`, `fetchRecipeIngredients`, `fetchIngredientsPreservingOrder`, `resolveIngredientsPreservingOrder`.
   - ✅ Add/edit/delete/share/save-shared all work; one listener fire per write; recipe ingredient order preserved; no reads besides the listeners.
 
-- [ ] **1.5 Switch pantry + shopping list to keyed docs** [Mac]
+- [x] **1.5 Switch pantry + shopping list to keyed docs** [Mac]
   - Doc ID = `IngredientKey.documentID(for: name)`; fields per Appendix A. Parse synchronously with `FirestoreMapping.listItem`. Delete `pantryFetchTask`/`shoppingFetchTask`, `fetchIngredients`, `fetchIngredient`, `addUniqueIngredient`, the `ref:` overloads.
   - `addToPantry(name:)` / `addToShoppingList(name:)`: `setData` on the keyed doc (idempotent — D3 fixed). Skip the write if the key is already present locally (avoids resetting `CreatedAt`, which would move the row).
   - `removeFromPantry(id:)` / `removeFromShoppingList(id:)`: `delete()` the keyed doc. No query.
@@ -364,7 +364,7 @@ Split into these PRs, in order. 1.1–1.3 add pure, tested building blocks; 1.4�
   - Log a summary (`print`) of migrated counts. Remove `LegacyMigrator` in a later release once all accounts are migrated (add a TODO with the date).
   - ✅ Test manually on a copy: create v1 data with the old build, install the new build, verify recipes/pantry/shopping all appear with correct order and no duplicates, then relaunch and confirm the migrator exits early.
 
-- [ ] **1.7 Docs** — Update `CLAUDE.md` (schema, listener pattern, testable core now includes `IngredientKey` + `FirestoreMapping`). Tick boxes in this file.
+- [x] **1.7 Docs** — Update `CLAUDE.md` (schema, listener pattern, testable core now includes `IngredientKey` + `FirestoreMapping`). Tick boxes in this file.
 
 ---
 
@@ -372,12 +372,12 @@ Split into these PRs, in order. 1.1–1.3 add pure, tested building blocks; 1.4�
 
 This phase is fully doable in a Linux container (Node 22 + Java 21 present; the Firebase emulator jar downloads from `storage.googleapis.com` — if the network policy blocks it, write the tests and mark them for Callum/CI to run).
 
-- [ ] **2.1 Firebase project config at repo root**
+- [x] **2.1 Firebase project config** _(lives in `firebase/`: `firebase.json`, `.firebaserc`, `firestore.rules`, `firestore.indexes.json`)_
   - `firebase.json` → `{ "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" }, "emulators": { "firestore": { "port": 8080 }, "auth": { "port": 9099 }, "ui": { "enabled": false } } }`
   - `.firebaserc` → `{ "projects": { "default": "<project-id>" } }` — project ID is in `GoogleService-Info.plist` (`PROJECT_ID`); **[Callum]** fills it in (don't guess).
   - `firestore.rules` — start from **Appendix B**.
   - `firestore.indexes.json` — collection-group index on `Recipes`: `IsShared ASC, CreatedAt DESC` (+ the existing `IsShared` single-field collection-group exemption if the console shows one).
-- [ ] **2.2 Rules unit tests** in `firebase/` (`package.json`, `vitest` or `mocha`, `@firebase/rules-unit-testing`, `firebase-tools` as devDependency). Cover at minimum:
+- [x] **2.2 Rules unit tests** in `firebase/` (`package.json`, `vitest` or `mocha`, `@firebase/rules-unit-testing`, `firebase-tools` as devDependency). Cover at minimum:
   - Owner can CRUD own recipes / pantry / shopping / meal plan / user doc.
   - Another signed-in user **cannot** read unshared recipes, **can** read shared recipes (direct get and collection-group query with `IsShared == true`), **cannot** write/delete anyone else's anything.
   - Unauthenticated: everything denied.
@@ -385,29 +385,29 @@ This phase is fully doable in a Linux container (Node 22 + Java 21 present; the 
   - Legacy `/Ingredients` readable by signed-in users, not writable.
   - Run with `npx firebase emulators:exec --only firestore "npm test"`.
 - [ ] **2.3 Deploy** [Callum] — `npx firebase deploy --only firestore:rules,firestore:indexes` after Phase 1 is live on Callum's device and the migration (1.6) has run on his account. Smoke-test the app afterwards (permission-denied errors will now surface in the banner thanks to D7).
-- [ ] **2.4 Document** in `CLAUDE.md`: rules live in `firestore.rules`, how to run rules tests, how to deploy.
+- [x] **2.4 Document** in `CLAUDE.md`: rules live in `firestore.rules`, how to run rules tests, how to deploy.
 
 ---
 
 ### Phase 3 — Auth & account
 
-- [ ] **3.1 `AuthFailure` + friendly messages** [Mac]
+- [x] **3.1 `AuthFailure` + friendly messages** [Mac]
   - New Foundation-only file `FoodPlanner/Models/AuthFailure.swift`: `enum AuthFailure: Equatable { case invalidCredentials, invalidEmail, emailInUse, weakPassword, network, tooManyRequests, requiresRecentLogin, userDisabled, unknown }` with `var message: String` (Appendix D).
   - Mapping from `AuthErrorCode` lives in `AuthViewModel` (`static func failure(from error: Error) -> AuthFailure`) — not unit-tested because it needs FirebaseAuth; the messages are.
   - Tests: every case has a non-empty, user-facing message.
-- [ ] **3.2 Modernise `AuthViewModel`** [Mac]
+- [x] **3.2 Modernise `AuthViewModel`** [Mac]
   - `@MainActor` (if not done in 1.3). Store the `AuthStateDidChangeListenerHandle` and remove it in `deinit`.
   - `func signIn(email:password:) async -> AuthFailure?`, `func signUp(email:password:) async -> AuthFailure?`, `func sendPasswordReset(email:) async -> AuthFailure?`, `func reauthenticate(password:) async -> AuthFailure?`, `func deleteAuthUser() async -> AuthFailure?` using Firebase's async APIs. Trim + lowercase the email before sending.
   - `@Published var isWorking = false` toggled around calls.
-- [ ] **3.3 Login & sign-up screens** [Mac]
+- [x] **3.3 Login & sign-up screens** [Mac]
   - Email fields: `.keyboardType(.emailAddress)`, `.textInputAutocapitalization(.never)`, `.autocorrectionDisabled()`, `.textContentType(.username)`. Password: `.textContentType(.password)` on login, `.textContentType(.newPassword)` on sign-up.
   - Sign-up: confirm-password field; client-side checks (valid-looking email, ≥ 6 chars, passwords match) with inline messages before calling Firebase.
   - Show `AuthFailure.message`; disable submit + show `ProgressView` while `isWorking`. Submit on keyboard return from the password field.
   - "Forgot password?" button on login → sheet with email field → `sendPasswordReset` → always show "If an account exists for that email, we've sent a reset link." (don't leak account existence).
   - Accessibility IDs: `signup.title`, `signup.email`, `signup.password`, `signup.confirmPassword`, `signup.submit`, `signup.error`, `login.error`, `login.forgotPassword`, `reset.email`, `reset.submit`.
   - Update `test_invalidLoginShowsError` to look for `login.error` rather than literal text; update `test_loginToSignupNavigation` to use `signup.title`.
-- [ ] **3.4 Account screen polish** [Mac] — Show email, app version (`CFBundleShortVersionString`), "Log Out" (with confirmation), links to privacy policy (placeholder URL constant until 5.3). IDs `account.email`, `account.logout`, `account.delete`.
-- [ ] **3.5 Account deletion** 🔴 [Mac] _(needs Phase 1)_
+- [x] **3.4 Account screen polish** [Mac] — Show email, app version (`CFBundleShortVersionString`), "Log Out" (with confirmation), links to privacy policy (placeholder URL constant until 5.3). IDs `account.email`, `account.logout`, `account.delete`.
+- [x] **3.5 Account deletion** 🔴 [Mac] _(needs Phase 1)_
   - `DataManager.deleteAllUserData() async -> Bool`: for each of `Recipes` (plus any legacy `Ingredients` subcollections), `Pantry`, `ShoppingList`, `MealPlan` (if Phase 7 has landed): page through docs and delete in `WriteBatch`es of ≤ 450; then delete `/Users/{uid}`. (Photos in Storage too once 6.3 lands.)
   - Flow in `AccountView`: "Delete Account" (destructive, red) → confirmation dialog explaining it's permanent and deletes all recipes including shared ones → password sheet → `reauthenticate(password:)` → `deleteAllUserData()` → `deleteAuthUser()`. On success the auth listener flips to `LoginView`. On failure at any step show the message; if data deletion succeeded but auth deletion failed, the user can retry (data delete is idempotent).
   - Order matters: **re-auth first**, so a `requiresRecentLogin` failure can't strand an account with its data already gone.
@@ -437,10 +437,10 @@ This phase is fully doable in a Linux container (Node 22 + Java 21 present; the 
   - Split `RecipeDetailView` into `RecipeDetailView` (state, toolbar, layout switching) + `RecipeIngredientsSection` + `RecipeInstructionsSection` + `SharedRecipeBanner`. Target: no file > ~250 lines.
   - Use `QuickAddRow`/`TapToFocusSpacer` in Pantry and Shopping.
   - ✅ No visual change; behaviour identical.
-- [ ] **4.4 Dark mode** [Mac] (U3, U12) — Replace `Color.white` with `Color(.secondarySystemBackground)` for text editors, `Color(.systemBackground)` for splash. Splash text → "FoodPlanner". Audit every screen in dark mode (simulator: Features ▸ Toggle Appearance).
-- [ ] **4.5 Shopping grouping by recipe ID** [Mac] (U8) — Key sections by `recipe.id`, title for display; move the grouping into a pure static helper `DataManager.shoppingSections(items:recipes:)` returning a small `ShoppingSection` struct, with tests (multi-recipe bucket, per-recipe, other, same-title recipes stay separate, sort order).
-- [ ] **4.6 Roll back optimistic hides** [Mac] (U4) — In Pantry/Shopping, if the `Bool` result from the DataManager call is `false`, remove the id from `hiddenIds` with animation.
-- [ ] **4.7 Empty states** [Mac] — Pantry and Shopping list currently show nothing when empty; add `ContentUnavailableView` with a hint ("Add what's in your cupboards…").
+- [x] **4.4 Dark mode** [Mac] (U3, U12) — Replace `Color.white` with `Color(.secondarySystemBackground)` for text editors, `Color(.systemBackground)` for splash. Splash text → "FoodPlanner". Audit every screen in dark mode (simulator: Features ▸ Toggle Appearance).
+- [x] **4.5 Shopping grouping by recipe ID** [Mac] (U8) — Key sections by `recipe.id`, title for display; move the grouping into a pure static helper `DataManager.shoppingSections(items:recipes:)` returning a small `ShoppingSection` struct, with tests (multi-recipe bucket, per-recipe, other, same-title recipes stay separate, sort order).
+- [x] **4.6 Roll back optimistic hides** [Mac] (U4) — In Pantry/Shopping, if the `Bool` result from the DataManager call is `false`, remove the id from `hiddenIds` with animation.
+- [x] **4.7 Empty states** [Mac] — Pantry and Shopping list currently show nothing when empty; add `ContentUnavailableView` with a hint ("Add what's in your cupboards…").
 - [ ] **4.8 Swift 6 / strict concurrency** [Mac] (H7) — Set `SWIFT_STRICT_CONCURRENCY = complete` (warnings), fix what's reasonable; then consider `SWIFT_VERSION = 6.0`. This is a build-setting change in `project.pbxproj` — do it via Xcode's Build Settings UI, not by hand. Separate PR; may be deferred.
 
 ---
@@ -496,10 +496,10 @@ This phase is fully doable in a Linux container (Node 22 + Java 21 present; the 
 
 > 8.1 and 8.2 are **superseded by R.11**, which builds the same jobs into `ci.yml` with no secrets. They're kept here only for the detail.
 
-- [ ] **8.1 Rules CI** [cloud-ok] — `.github/workflows/firestore-rules.yml` on `ubuntu-latest`: `actions/setup-node@v4` (22), `actions/setup-java@v4` (21, temurin), cache `~/.cache/firebase/emulators`, `npm ci` in `firebase/`, `npx firebase emulators:exec --only firestore --project demo-foodplanner "npm test"` (a `demo-` project ID needs no credentials). Trigger on changes to `firestore.rules`, `storage.rules`, `firebase/**`.
-- [ ] **8.2 iOS CI** [cloud-ok to write, Callum to configure] — `.github/workflows/ios.yml` on a `macos-26` runner (or latest with Xcode 26): select Xcode, write `GoogleService-Info.plist` from a base64 repo secret `GOOGLE_SERVICE_INFO_PLIST_B64`, cache SPM (`~/Library/Developer/Xcode/DerivedData/**/SourcePackages`), run `xcodebuild test -only-testing:FoodPlannerTests` on an available simulator. Requires 0.5 (shared scheme + Package.resolved). UI tests job optional / nightly.
+- [x] **8.1 Rules CI** _(done as the `rules` job in `ci.yml`, R.11)_ [cloud-ok] — `.github/workflows/firestore-rules.yml` on `ubuntu-latest`: `actions/setup-node@v4` (22), `actions/setup-java@v4` (21, temurin), cache `~/.cache/firebase/emulators`, `npm ci` in `firebase/`, `npx firebase emulators:exec --only firestore --project demo-foodplanner "npm test"` (a `demo-` project ID needs no credentials). Trigger on changes to `firestore.rules`, `storage.rules`, `firebase/**`.
+- [x] **8.2 iOS CI** _(superseded by R.11)_ [cloud-ok to write, Callum to configure] — `.github/workflows/ios.yml` on a `macos-26` runner (or latest with Xcode 26): select Xcode, write `GoogleService-Info.plist` from a base64 repo secret `GOOGLE_SERVICE_INFO_PLIST_B64`, cache SPM (`~/Library/Developer/Xcode/DerivedData/**/SourcePackages`), run `xcodebuild test -only-testing:FoodPlannerTests` on an available simulator. Requires 0.5 (shared scheme + Package.resolved). UI tests job optional / nightly.
 - [x] **8.3 Emulator mode in the app** [Mac] — In `FoodPlannerApp.init` under `#if DEBUG`: if launch argument `-use-firebase-emulator` is present, call `Auth.auth().useEmulator(withHost: "127.0.0.1", port: 9099)` and set Firestore `settings.host = "127.0.0.1:8080"`, `isSSLEnabled = false`, `cacheSettings = MemoryCacheSettings()` **before** any other Firestore use. Document in `CLAUDE.md`.
-- [ ] **8.4 Signed-in UI tests** [Mac] — With the emulators running (`npx firebase emulators:start --only auth,firestore --project demo-foodplanner`), UI tests that sign up a fresh random user and cover: add recipe → appears in list; pantry toggle from detail → badge updates; Add All → items on shopping list; tick item → moves to pantry; edit recipe; delete recipe; share → visible from a second account; account deletion. Switch `test_invalidLoginShowsError` to the emulator too (T2). Add the required accessibility IDs as you go.
+- [x] **8.4 Signed-in UI tests** [Mac] — With the emulators running (`npx firebase emulators:start --only auth,firestore --project demo-foodplanner`), UI tests that sign up a fresh random user and cover: add recipe → appears in list; pantry toggle from detail → badge updates; Add All → items on shopping list; tick item → moves to pantry; edit recipe; delete recipe; share → visible from a second account; account deletion. Switch `test_invalidLoginShowsError` to the emulator too (T2). Add the required accessibility IDs as you go.
 - [ ] **8.5 DataManager integration tests** [Mac] (optional) — Swift Testing suite gated on an env var that runs `DataManager` against the emulator: write-then-listen round trips, batch atomicity, migration (seed v1 data via the emulator REST API, run `LegacyMigrator`, assert v2 shape).
 
 ---

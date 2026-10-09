@@ -145,42 +145,18 @@ struct ShoppingListView: View {
     }
 
     private var addRow: some View {
-        HStack(spacing: 8) {
-            Button {
-                commit()
-                isAddFieldFocused = true
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundColor(.gray)
-            }
-            .buttonStyle(.plain)
-
-            TextField("Add ingredient", text: $newItemText)
-                .accessibilityIdentifier("shopping.addField")
-                .focused($isAddFieldFocused)
-                .submitLabel(.return)
-                .onSubmit(commit)
-        }
+        QuickAddRow(
+            text: $newItemText, isFocused: $isAddFieldFocused, style: .list, fieldIdentifier: "shopping.addField",
+            onCommit: commit
+        )
         .padding(.horizontal)
-        .padding(.vertical, 10)
-        .onChange(of: isAddFieldFocused) { was, _ in
-            if was { commit() }
-        }
+        .background(Color(UIColor.systemBackground))
     }
 
     // Fills the empty area below the add row. Tap toggles: focuses the add field when
     // idle, dismisses the keyboard when already typing.
     private var tapToAddSpacer: some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .frame(minHeight: 300)
-            .onTapGesture {
-                if isAddFieldFocused {
-                    isAddFieldFocused = false
-                } else {
-                    isAddFieldFocused = true
-                }
-            }
+        TapToFocusSpacer(isFocused: $isAddFieldFocused, minHeight: 300)
     }
 
     // MARK: - Actions

@@ -290,12 +290,7 @@ struct RecipeDetailView: View {
     // Fills the empty area under the ingredient list. Tapping it toggles the add field: focuses it
     // when idle, or dismisses the keyboard when typing (losing focus commits any in-progress text).
     private var tapToAddSpacer: some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .frame(minHeight: 120)
-            .onTapGesture {
-                isAddIngredientFocused.toggle()
-            }
+        TapToFocusSpacer(isFocused: $isAddIngredientFocused)
     }
 
     private func editIngredientRow(_ ingredient: IngredientItem) -> some View {
@@ -327,28 +322,10 @@ struct RecipeDetailView: View {
     }
 
     private var addIngredientRow: some View {
-        HStack {
-            Button {
-                commitIngredient()
-                isAddIngredientFocused = true
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundColor(.gray)
-                    .padding(.leading)
-            }
-            .buttonStyle(.plain)
-
-            TextField("Add ingredient", text: $newIngredientText)
-                .focused($isAddIngredientFocused)
-                .padding(.vertical, 10)
-                .padding(.horizontal, 4)
-                .submitLabel(.return)
-                .onSubmit(commitIngredient)
-        }
-        .padding(.horizontal)
-        .onChange(of: isAddIngredientFocused) { was, _ in
-            if was { commitIngredient() }
-        }
+        QuickAddRow(
+            text: $newIngredientText, isFocused: $isAddIngredientFocused,
+            fieldIdentifier: "detail.edit.ingredientField",
+            onCommit: commitIngredient)
     }
 
     private var editInstructionsSection: some View {
