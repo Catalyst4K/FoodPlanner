@@ -2,38 +2,67 @@ import SwiftUI
 
 struct AccountView: View {
     @ObservedObject var authViewModel: AuthViewModel
+    @EnvironmentObject private var dataManager: DataManager
     @State private var showingAcknowledgements = false
+    @State private var confirmingLogout = false
+    @State private var confirmingDelete = false
+    @State private var showingDeletePassword = false
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Account")
-                .font(.largeTitle)
-                .bold()
+        List {
+            Section("Account") {
+                LabeledContent("Email", value: authViewModel.user?.email ?? "Not logged in")
+                    .accessibilityIdentifier("account.email")
+            }
 
-            // Check if the user is logged in
-            if let user = authViewModel.user {
-                Text("Logged in as:")
-                Text(user.email ?? "Unknown")
-                    .font(.headline)
-
-                Button("Log Out") {
-                    authViewModel.signOut()
+            Section("About") {
+                LabeledContent("Version", value: AppInfo.currentVersionDescription)
+                    .accessibilityIdentifier("account.version")
+                if let url = AppLinks.privacyPolicy {
+                    Link("Privacy policy", destination: url)
+                        .accessibilityIdentifier("account.privacy")
                 }
-                .foregroundColor(.red)
-                .padding(.top)
-            } else {
-                Text("Not logged in")
-                    .foregroundColor(.secondary)
+                Button("Acknowledgements") {
+                    showingAcknowledgements = true
+                }
+                .accessibilityIdentifier("account.acknowledgements")
             }
 
-            Button("Acknowledgements") {
-                showingAcknowledgements = true
+            if authViewModel.user != nil {
+                Section {
+                    Button("Log Out", role: .destructive) {
+                        confirmingLogout = true
+                    }
+                    .accessibilityIdentifier("account.logout")
+
+                    Button("Delete Account", role: .destructive) {
+                        confirmingDelete = true
+                    }
+                    .accessibilityIdentifier("account.delete")
+                }
             }
-            .accessibilityIdentifier("account.acknowledgements")
         }
-        .padding()
+        .navigationTitle("Account")
         .sheet(isPresented: $showingAcknowledgements) {
             AcknowledgementsView()
+        }
+        .sheet(isPresented: $showingDeletePassword) {
+            DeleteAccountView(authViewModel: authViewModel)
+        }
+        .confirmationDialog("Log out of FoodPlanner?", isPresented: $confirmingLogout, titleVisibility: .visible) {
+            Button("Log Out", role: .destructive) { authViewModel.signOut() }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog(
+            "Delete your account?", isPresented: $confirmingDelete, titleVisibility: .visible
+        ) {
+            Button("Continue", role: .destructive) { showingDeletePassword = true }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                "This is permanent. Your account and all of your recipes, including shared ones, "
+                    + "your pantry and your shopping list will be deleted."
+            )
         }
     }
 }

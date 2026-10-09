@@ -326,6 +326,36 @@ class DataManager: ObservableObject {
         }
     }
 
+    // MARK: - Account deletion
+
+    /// Deletes everything the current user owns: recipes (shared ones too), pantry, shopping list, then the
+    /// user document. Idempotent, so it is safe to retry after a partial failure. The caller re-authenticates
+    /// first and deletes the Auth account afterwards.
+    @discardableResult
+    func deleteAllUserData() async -> Bool {
+        do {
+            for collection in [userRecipesRef, pantryRef, shoppingRef] {
+                try await deleteAllDocuments(in: collection)
+            }
+            try await db.collection("Users").document(currentUserId).delete()
+            return true
+        } catch {
+            report(error, context: "Deleting account data")
+            return false
+        }
+    }
+
+    /// Deletes a collection's documents in batches (Firestore allows at most 500 writes per batch).
+    private func deleteAllDocuments(in collection: CollectionReference) async throws {
+        while true {
+            let snapshot = try await collection.limit(to: 450).getDocuments()
+            if snapshot.documents.isEmpty { return }
+            let batch = db.batch()
+            snapshot.documents.forEach { batch.deleteDocument($0.reference) }
+            try await batch.commit()
+        }
+    }
+
     // MARK: - View helpers (instance methods delegate to pure static helpers below)
 
     func ingredientsWithStatus(for recipe: Recipe) -> [(
