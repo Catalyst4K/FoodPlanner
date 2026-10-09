@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // A recipe may carry OwnerId, but it must be the writer's own uid (the app derives the
+    // owner from it). Docs from before OwnerId existed have none, so allow it to be absent.
+    function validRecipe() {
+      let d = request.resource.data;
+      return d.Name is string && d.Name.size() > 0 && d.Name.size() <= 200
+        && d.Instructions is string && d.Instructions.size() <= 20000
+        && (!('OwnerId' in d) || d.OwnerId == request.auth.uid)
+        && (!('IsShared' in d) || d.IsShared is bool);
+    }
+
+    function validRecipeIngredient() {
+      let d = request.resource.data;
+      return d.Ref is path
+        && d.Order is int
+        && (!('Quantity' in d) || d.Quantity is number)
+        && (!('Unit' in d) || (d.Unit is string && d.Unit.size() <= 40));
+    }
+
+    function validIngredientLink() {
+      return request.resource.data.Ingredient is path;
+    }
+
+    // Global Ingredients dictionary: any signed-in user can read and add an entry, but only
+    // the two known fields, with bounded names, and entries are immutable.
+    match /Ingredients/{ingredientId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['Name', 'NameLower'])
+        && request.resource.data.Name is string
+        && request.resource.data.Name.size() > 0 && request.resource.data.Name.size() <= 80
+        && request.resource.data.NameLower is string
+        && request.resource.data.NameLower.size() > 0 && request.resource.data.NameLower.size() <= 80;
+      allow update, delete: if false;
+    }
+
+    // Collection-group query for shared recipes: db.collectionGroup("Recipes")
+    // .whereField("IsShared", ==, true) in DataManager.listenToSharedRecipes.
+    // Rules v2 needs this declared with a recursive wildcard. Only shared recipes qualify.
+    // (There is deliberately no collection-group rule for Ingredients: it would let any
+    // signed-in user list every user's ingredient entries, including unshared recipes.)
+    match /{path=**}/Recipes/{recipeId} {
+      allow read: if signedIn() && resource.data.IsShared == true;
+    }
+
+    match /Users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /Recipes/{recipeId} {
+        allow read: if signedIn() && (request.auth.uid == userId || resource.data.IsShared == true);
+        allow create, update: if isOwner(userId) && validRecipe();
+        allow delete: if isOwner(userId);
+
+        // Ingredient entries follow their recipe: the owner, or anyone if the recipe is shared.
+        // Writes can't use get() on the parent (addRecipe writes ingredients before the parent
+        // doc exists, DataManager.swift), so they are owner-only with field checks instead.
+        match /Ingredients/{ingredientRefId} {
+          allow read: if isOwner(userId)
+            || (signedIn()
+              && get(/databases/$(database)/documents/Users/$(userId)/Recipes/$(recipeId))
+                .data.get('IsShared', false) == true);
+          allow create, update: if isOwner(userId) && validRecipeIngredient();
+          allow delete: if isOwner(userId);
+        }
+      }
+
+      match /Pantry/{ingredientId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validIngredientLink();
+      }
+
+      match /ShoppingList/{ingredientId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId) && validIngredientLink();
+      }
+    }
+  }
+}

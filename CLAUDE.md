@@ -36,7 +36,7 @@ Unit tests (`FoodPlannerTests`) use the **Swift Testing** framework (`import Tes
 
 ## Emulators and screenshots
 
-`firebase/` holds the local Auth and Firestore emulators (project `demo-foodplanner`), a seed script and its README. Launching a DEBUG build with `-use-firebase-emulator` (handled in `FoodPlannerApp.init`) points Auth and Firestore at them, so no Firebase account is needed. `make screenshots` regenerates `docs/screenshots/` through `ScreenshotTests`, which only runs when `SCREENSHOTS=1` is set. Seed data follows the current Firestore schema; update `firebase/seed.mjs` with every schema change.
+`firebase/` holds the local Auth and Firestore emulators (project `demo-foodplanner`), a seed script and its README. Launching a DEBUG build with `-use-firebase-emulator` (handled in `FoodPlannerApp.init`) points Auth and Firestore at them, so no Firebase account is needed. `make screenshots` regenerates `docs/screenshots/` through `ScreenshotTests`, which only runs when `SCREENSHOTS=1` is set. Seed data follows the current Firestore schema; update `firebase/seed.mjs` with every schema change. Security rules live in `firebase/firestore.rules` with allow/deny tests in `firebase/test/` (`cd firebase && npm run test:emulated`); the rules are deployed by hand (Firebase console or `firebase deploy --only firestore:rules`), so after merging a rules change, publish it.
 
 ## Architecture
 
