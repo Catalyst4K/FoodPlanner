@@ -9,7 +9,7 @@ SOURCES   := FoodPlanner FoodPlannerTests FoodPlannerUITests
 OUT       := build-output
 FIREBASE_PLIST := FoodPlanner/GoogleService-Info.plist
 
-.PHONY: help format lint build test test-ui coverage licenses check plist
+.PHONY: help format lint build test test-ui coverage licenses screenshots check plist
 
 help:
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*##/\t/'
@@ -41,5 +41,8 @@ coverage: plist ## Unit tests with coverage, then the ratchet check
 
 licenses: build ## Regenerate THIRD-PARTY-LICENSES.md and Acknowledgements.json
 	scripts/generate-third-party-licenses.sh
+
+screenshots: ## Regenerate docs/screenshots (needs Java 21: brew install openjdk@21)
+	scripts/screenshots.sh
 
 check: lint build coverage ## Full checkpoint battery (lint, build, unit tests, coverage ratchet)

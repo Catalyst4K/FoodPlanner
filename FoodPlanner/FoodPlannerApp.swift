@@ -92,6 +92,16 @@ struct FoodPlannerApp: App {
     init() {
         FirebaseApp.configure()
         #if DEBUG
+            // Local development and UI tests: talk to the Firebase emulators (never production).
+            // Must run before anything else touches Auth or Firestore. See firebase/README.md.
+            if ProcessInfo.processInfo.arguments.contains("-use-firebase-emulator") {
+                Auth.auth().useEmulator(withHost: "127.0.0.1", port: 9099)
+                let settings = Firestore.firestore().settings
+                settings.host = "127.0.0.1:8080"
+                settings.isSSLEnabled = false
+                settings.cacheSettings = MemoryCacheSettings()
+                Firestore.firestore().settings = settings
+            }
             // UI test entry point: force a signed-out state so tests always start at Login.
             if ProcessInfo.processInfo.arguments.contains("-uitest-signed-out") {
                 try? Auth.auth().signOut()

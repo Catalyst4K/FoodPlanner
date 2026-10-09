@@ -1,0 +1,13 @@
+{
+  "name": "foodplanner-firebase",
+  "private": true,
+  "description": "Firebase emulator config, seed data and (later) rules tests for FoodPlanner",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "emulators": "firebase emulators:start --project demo-foodplanner --only auth,firestore",
+    "seed": "node seed.mjs"
+  },
+  "devDependencies": {
+    "firebase-tools": "^14.0.0"
+  }
+}
