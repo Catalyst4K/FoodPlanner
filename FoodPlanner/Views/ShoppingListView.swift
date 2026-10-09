@@ -148,7 +148,7 @@ struct ShoppingListView: View {
     private var addRow: some View {
         QuickAddRow(
             text: $newItemText, isFocused: $isAddFieldFocused, style: .list, fieldIdentifier: "shopping.addField",
-            onCommit: commit
+            knownNames: dataManager.knownIngredientNames, onCommit: commit
         )
         .padding(.horizontal)
         .background(Color(UIColor.systemBackground))

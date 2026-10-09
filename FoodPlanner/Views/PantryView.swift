@@ -75,7 +75,7 @@ struct PantryView: View {
     private var addRow: some View {
         QuickAddRow(
             text: $newItemText, isFocused: $isAddFieldFocused, style: .list, fieldIdentifier: "pantry.addField",
-            onCommit: commit)
+            knownNames: dataManager.knownIngredientNames, onCommit: commit)
     }
 
     // Fills the empty area below the add row. Tap toggles: focuses the add field when

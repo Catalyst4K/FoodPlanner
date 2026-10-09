@@ -151,6 +151,23 @@ final class SignedInFlowTests: XCTestCase {
     }
 
     @MainActor
+    func test_ingredientNamesAreSuggestedWhileTyping() throws {
+        let app = launch()
+        _ = signUp(app)
+        addRecipe(app, title: "Carrot Soup", ingredients: ["Carrots"], instructions: "Boil.")
+        XCTAssertTrue(app.staticTexts["Carrot Soup"].waitForExistence(timeout: 15))
+
+        app.tabBars.buttons["Shopping"].tap()
+        let field = app.textFields["shopping.addField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        type("Car", into: field, in: app)
+        let suggestion = app.buttons["suggestion.Carrots"]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 5), "A known ingredient should be suggested")
+        suggestion.tap()
+        XCTAssertTrue(app.buttons["shopping.tick.Carrots"].waitForExistence(timeout: 10), "Picking it adds the item")
+    }
+
+    @MainActor
     func test_sortMenuReordersRecipes() throws {
         let app = launch()
         _ = signUp(app)

@@ -14,9 +14,44 @@ struct QuickAddRow: View {
     var isFocused: FocusState<Bool>.Binding
     var style: Style = .form
     var fieldIdentifier: String?
+    /// Ingredient names to suggest from while typing (empty: no suggestions).
+    var knownNames: [String] = []
     let onCommit: () -> Void
 
+    private var suggestions: [String] {
+        isFocused.wrappedValue ? IngredientSuggestions.suggestions(for: text, known: knownNames) : []
+    }
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            row
+            suggestionBar
+        }
+    }
+
+    @ViewBuilder
+    private var suggestionBar: some View {
+        if !suggestions.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(suggestions, id: \.self) { suggestion in
+                        Button(suggestion) {
+                            text = IngredientSuggestions.completing(text, with: suggestion)
+                            onCommit()
+                            isFocused.wrappedValue = true
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("suggestion.\(suggestion)")
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 6)
+            }
+        }
+    }
+
+    private var row: some View {
         HStack(spacing: style == .list ? 8 : nil) {
             Button {
                 onCommit()

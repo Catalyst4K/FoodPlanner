@@ -394,6 +394,12 @@ class DataManager: ObservableObject {
         }
     }
 
+    /// Every ingredient name the user has used (recipes, pantry, shopping list), for autocomplete.
+    var knownIngredientNames: [String] {
+        userRecipes.flatMap { $0.ingredients.map(\.name) } + pantryIngredients.map(\.name)
+            + shoppingListIngredients.map(\.name)
+    }
+
     // MARK: - View helpers (instance methods delegate to pure static helpers below)
 
     func ingredientsWithStatus(for recipe: Recipe) -> [(

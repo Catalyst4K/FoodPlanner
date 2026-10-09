@@ -325,7 +325,7 @@ struct RecipeDetailView: View {
         QuickAddRow(
             text: $newIngredientText, isFocused: $isAddIngredientFocused,
             fieldIdentifier: "detail.edit.ingredientField",
-            onCommit: commitIngredient)
+            knownNames: dataManager.knownIngredientNames, onCommit: commitIngredient)
     }
 
     private var editInstructionsSection: some View {

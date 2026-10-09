@@ -91,7 +91,7 @@ struct AddRecipeView: View {
     private var addIngredientRow: some View {
         QuickAddRow(
             text: $newIngredientText, isFocused: $isAddIngredientFocused, fieldIdentifier: "addRecipe.ingredientField",
-            onCommit: commitIngredient)
+            knownNames: dataManager.knownIngredientNames, onCommit: commitIngredient)
     }
 
     private var tapToAddSpacer: some View {
