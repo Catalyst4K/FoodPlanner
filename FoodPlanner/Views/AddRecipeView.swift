@@ -148,7 +148,7 @@ struct AddRecipeView: View {
                 .accessibilityIdentifier("addRecipe.instructions")
                 .frame(minHeight: 150)
                 .padding(10)
-                .background(Color.white)
+                .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
                 .font(.body)
                 .padding(.horizontal)

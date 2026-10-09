@@ -21,6 +21,15 @@ struct PantryView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    if visibleIngredients.isEmpty {
+                        ContentUnavailableView(
+                            "Your pantry is empty", systemImage: "refrigerator",
+                            description: Text(
+                                "Add what's in your cupboards and fridge, and recipes will show what you can cook.")
+                        )
+                        .padding(.top, 24)
+                        .accessibilityIdentifier("pantry.empty")
+                    }
                     ForEach(visibleIngredients) { ingredient in
                         row(for: ingredient)
                             .transition(.opacity)

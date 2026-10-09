@@ -27,6 +27,14 @@ struct ShoppingListView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    if visibleIngredients.isEmpty {
+                        ContentUnavailableView(
+                            "Nothing to buy", systemImage: "cart",
+                            description: Text("Add items here, or add a recipe's missing ingredients from its page.")
+                        )
+                        .padding(.top, 24)
+                        .accessibilityIdentifier("shopping.empty")
+                    }
                     listContent
                     addRow
                     tapToAddSpacer

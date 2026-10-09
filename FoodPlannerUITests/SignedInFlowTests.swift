@@ -17,6 +17,23 @@ final class SignedInFlowTests: XCTestCase {
     // MARK: - Tests
 
     @MainActor
+    func test_emptyPantryAndShoppingListShowHints() throws {
+        let app = launch()
+        _ = signUp(app)
+
+        app.tabBars.buttons["Pantry"].tap()
+        XCTAssertTrue(app.staticTexts["Your pantry is empty"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Shopping"].tap()
+        XCTAssertTrue(app.staticTexts["Nothing to buy"].waitForExistence(timeout: 10))
+
+        // The hint goes away as soon as there is something in the list.
+        let field = app.textFields["shopping.addField"]
+        type("Milk\n", into: field, in: app)
+        XCTAssertTrue(app.buttons["shopping.tick.Milk"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Nothing to buy"].exists)
+    }
+
+    @MainActor
     func test_addRecipe_pantry_shoppingList_flow() throws {
         let app = launch()
         _ = signUp(app)
