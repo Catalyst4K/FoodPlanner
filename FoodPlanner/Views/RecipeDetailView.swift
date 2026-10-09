@@ -13,6 +13,8 @@ struct RecipeDetailView: View {
     @Environment(\.presentationMode) var presentationMode
     @State private var recipe: Recipe
     @State private var didPressAddAll = false
+    /// The servings the page is currently scaled to (nil: as written).
+    @State private var displayedServings: Int?
     @State private var didPressSave = false
     @State private var showDeleteConfirmation = false
     @State private var overlayOpacity: Double = 0
@@ -69,7 +71,7 @@ struct RecipeDetailView: View {
     }
 
     private var ingredientRows: [IngredientRow] {
-        dataManager.ingredientsWithStatus(for: recipe).map { status in
+        dataManager.ingredientsWithStatus(for: shownRecipe).map { status in
             IngredientRow(
                 id: IngredientKey.documentID(for: status.ingredient.name),
                 ingredient: status.ingredient,
@@ -77,6 +79,12 @@ struct RecipeDetailView: View {
                 isInShoppingList: status.isInShoppingList
             )
         }
+    }
+
+    /// The recipe as displayed: scaled to `displayedServings` when the user has changed it.
+    private var shownRecipe: Recipe {
+        guard let displayedServings else { return recipe }
+        return recipe.scaled(toServings: displayedServings)
     }
 
     private var shouldShowAddAllButton: Bool {
@@ -238,6 +246,7 @@ struct RecipeDetailView: View {
         ScrollView {
             VStack(spacing: 20) {
                 editTitleField
+                ServingsStepper(servings: $editVM.servings)
                 editIngredientsSection
                 editInstructionsSection
             }
@@ -292,10 +301,12 @@ struct RecipeDetailView: View {
     private func editIngredientRow(_ ingredient: IngredientItem) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Text(ingredient.name)
+                Text(IngredientFormatter.format(ingredient))
                     .padding(.vertical, 10)
                     .padding(.horizontal)
                     .foregroundColor(.primary)
+                    .contentShape(Rectangle())
+                    .onTapGesture { editIngredientAsText(ingredient) }
 
                 Spacer()
 
@@ -388,9 +399,19 @@ struct RecipeDetailView: View {
         recipe.title = built.title
         recipe.ingredients = built.ingredients
         recipe.instructions = built.instructions
+        recipe.servings = built.servings
+        displayedServings = nil
         Task { await dataManager.updateRecipe(recipeId: recipeId, recipe: built) }
         isAddIngredientFocused = false
         isEditing = false
+    }
+
+    /// Tapping an ingredient row moves it into the add field as text, so it can be edited and re-parsed on commit.
+    private func editIngredientAsText(_ ingredient: IngredientItem) {
+        commitIngredient()
+        editVM.removeIngredient(id: ingredient.id)
+        newIngredientText = IngredientFormatter.format(ingredient)
+        isAddIngredientFocused = true
     }
 
     private func commitIngredient() {
@@ -398,7 +419,7 @@ struct RecipeDetailView: View {
         newIngredientText = ""
         guard !trimmed.isEmpty else { return }
         withAnimation(.easeOut(duration: 0.25)) {
-            editVM.addIngredient(name: trimmed)
+            editVM.addIngredient(text: trimmed)
         }
     }
 
@@ -478,7 +499,7 @@ struct RecipeDetailView: View {
 
                 if shouldShowAddAllButton {
                     Button {
-                        Task { await dataManager.addMissingIngredientsToShoppingList(from: recipe) }
+                        Task { await dataManager.addMissingIngredientsToShoppingList(from: shownRecipe) }
                         withAnimation(.easeInOut(duration: 0.2)) { didPressAddAll = true }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             withAnimation(.easeInOut(duration: 0.2)) { didPressAddAll = false }
@@ -496,6 +517,15 @@ struct RecipeDetailView: View {
                 }
             }
 
+            if let servings = recipe.servings {
+                Stepper(
+                    "Servings: \(displayedServings ?? servings)",
+                    value: Binding(get: { displayedServings ?? servings }, set: { displayedServings = $0 }),
+                    in: 1...100
+                )
+                .accessibilityIdentifier("detail.servings")
+            }
+
             ForEach(ingredientRows) { status in
                 HStack {
                     Button {
@@ -508,7 +538,7 @@ struct RecipeDetailView: View {
                     .accessibilityIdentifier("detail.pantry.\(status.ingredient.name)")
                     .accessibilityLabel(status.isInPantry ? "In pantry" : "Not in pantry")
 
-                    Text(status.ingredient.name)
+                    Text(IngredientFormatter.format(status.ingredient))
                         .font(.body)
                         .padding(.bottom, 2)
 

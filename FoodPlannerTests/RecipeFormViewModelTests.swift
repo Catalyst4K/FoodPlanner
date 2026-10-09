@@ -150,4 +150,45 @@ struct RecipeFormViewModelTests {
         vm.addIngredient(name: "olive   oil")
         #expect(vm.ingredients.map(\.name) == ["Jalapeño", "Olive Oil"])
     }
+
+    // MARK: - Amounts and servings
+
+    @Test("addIngredient(text:) parses amounts, units and names")
+    func addIngredientTextParses() {
+        let vm = RecipeFormViewModel()
+        vm.addIngredient(text: "200g plain flour")
+        vm.addIngredient(text: "3 eggs")
+        vm.addIngredient(text: "salt")
+        #expect(vm.ingredients.map(\.name) == ["plain flour", "eggs", "salt"])
+        #expect(vm.ingredients.map(\.quantity) == [200, 3, nil])
+        #expect(vm.ingredients.map(\.unit) == ["g", nil, nil])
+    }
+
+    @Test("addIngredient(text:) skips duplicates by name and blank text")
+    func addIngredientTextSkipsDuplicates() {
+        let vm = RecipeFormViewModel()
+        vm.addIngredient(text: "2 cups milk")
+        vm.addIngredient(text: "1 cup Milk")
+        vm.addIngredient(text: "   ")
+        #expect(vm.ingredients.count == 1)
+        #expect(vm.ingredients[0].quantity == 2)
+    }
+
+    @Test("servings round-trip through load, build and reset")
+    func servingsRoundTrip() throws {
+        let vm = RecipeFormViewModel()
+        vm.title = "Pancakes"
+        vm.addIngredient(text: "2 eggs")
+        #expect(try #require(vm.buildRecipe()).servings == nil)
+
+        vm.servings = 4
+        let built = try #require(vm.buildRecipe())
+        #expect(built.servings == 4)
+
+        let other = RecipeFormViewModel(editing: built)
+        #expect(other.servings == 4)
+
+        vm.resetForm()
+        #expect(vm.servings == nil)
+    }
 }

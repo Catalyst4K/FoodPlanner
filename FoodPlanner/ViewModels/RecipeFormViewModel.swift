@@ -5,6 +5,8 @@ class RecipeFormViewModel: ObservableObject {
     @Published var title: String = ""
     @Published var ingredients: [IngredientItem] = []
     @Published var instructions: String = ""
+    /// Optional; nil means "not set".
+    @Published var servings: Int?
 
     init() {}
 
@@ -19,9 +21,20 @@ class RecipeFormViewModel: ObservableObject {
     func load(from recipe: Recipe) {
         self.title = recipe.title
         self.instructions = recipe.instructions
+        self.servings = recipe.servings
         self.ingredients = recipe.ingredients.map {
             IngredientItem(id: UUID().uuidString, name: $0.name, quantity: $0.quantity, unit: $0.unit)
         }
+    }
+
+    /// Parses free text such as "200g plain flour" or "3 eggs" and appends it (duplicates by name are skipped).
+    func addIngredient(text: String) {
+        let parsed = IngredientParser.parse(text)
+        guard !parsed.name.isEmpty else { return }
+        let key = IngredientKey.normalized(parsed.name)
+        guard !ingredients.contains(where: { IngredientKey.normalized($0.name) == key }) else { return }
+        ingredients.append(
+            IngredientItem(id: UUID().uuidString, name: parsed.name, quantity: parsed.quantity, unit: parsed.unit))
     }
 
     /// Appends a committed ingredient to the local list.
@@ -41,6 +54,7 @@ class RecipeFormViewModel: ObservableObject {
     func resetForm() {
         title = ""
         instructions = ""
+        servings = nil
         ingredients = []
     }
 
@@ -58,7 +72,8 @@ class RecipeFormViewModel: ObservableObject {
             id: UUID().uuidString,
             title: cleanedTitle,
             ingredients: ingredients,
-            instructions: cleanedInstructions
+            instructions: cleanedInstructions,
+            servings: servings
         )
     }
 }

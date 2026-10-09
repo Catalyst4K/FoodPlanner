@@ -118,7 +118,9 @@ struct PantryView: View {
         let trimmed = newItemText.trimmingCharacters(in: .whitespaces)
         newItemText = ""
         guard !trimmed.isEmpty else { return }
-        Task { await dataManager.addToPantry(name: trimmed) }
+        // "2 eggs" is just "eggs" in the pantry: it only records what you have, not how much.
+        let name = IngredientParser.parse(trimmed).name
+        Task { await dataManager.addToPantry(name: name) }
     }
 
     private func remove(_ ingredient: IngredientItem) {
