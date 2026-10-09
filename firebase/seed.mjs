@@ -1,7 +1,7 @@
 // Seeds the local Firebase emulators with a demo account and made-up data, using
 // the emulators' REST APIs (no Firebase account or admin SDK needed).
 // Emulator-only: the project ID `demo-foodplanner` can never reach production.
-// Data follows the current (v1) Firestore schema; update it when the schema changes.
+// Recipes follow schema v2 (inline ingredients); pantry and shopping still use v1 references until plan task 1.5.
 //
 //   make emulators-exec CMD="node seed.mjs"   (or run while `npm run emulators` is up)
 
@@ -118,19 +118,23 @@ for (const [key, name] of Object.entries(ingredients)) {
 }
 
 for (const recipe of recipes) {
-  const path = `${user}/Recipes/${recipe.id}`;
-  await put(path, {
+  await put(`${user}/Recipes/${recipe.id}`, {
     Name: str(recipe.name),
     Instructions: str(recipe.instructions),
+    Ingredients: {
+      arrayValue: {
+        values: recipe.items.map(([key, quantity, unit]) => {
+          const fields = { Name: str(ingredients[key]), Quantity: { doubleValue: quantity } };
+          if (unit) fields.Unit = str(unit);
+          return { mapValue: { fields } };
+        }),
+      },
+    },
     OwnerId: str(uid),
     IsShared: { booleanValue: recipe.shared },
     CreatedAt: ts(recipe.created),
+    UpdatedAt: ts(recipe.created),
   });
-  for (const [index, [key, quantity, unit]] of recipe.items.entries()) {
-    const fields = { Ref: ref(key), Order: { integerValue: String(index) }, Quantity: { doubleValue: quantity } };
-    if (unit) fields.Unit = str(unit);
-    await put(`${path}/Ingredients/item-${index}`, fields);
-  }
 }
 
 for (const [index, key] of pantry.entries()) {
