@@ -76,7 +76,7 @@ class DataManager: ObservableObject {
                 // Surface loudly — the most common cause here is a missing composite index that
                 // Firestore prompts for on first query. Its console URL is in the underlying error.
                 print("Error fetching shared recipes: \(error.localizedDescription)")
-                Task { await self.report(error, context: "Shared recipes") }
+                Task { self.report(error, context: "Shared recipes") }
                 return
             }
             guard let docs = snapshot?.documents else { return }
