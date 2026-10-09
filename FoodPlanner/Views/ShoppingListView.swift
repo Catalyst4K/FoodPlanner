@@ -2,14 +2,10 @@ import SwiftUI
 
 struct ShoppingListView: View {
     @EnvironmentObject private var dataManager: DataManager
-    @Binding var sortOption: String
+    @AppStorage("shoppingSort") private var sort: ShoppingSort = .newest
     @State private var newItemText: String = ""
     @State private var hiddenIds: Set<String> = []
     @FocusState private var isAddFieldFocused: Bool
-
-    static let sortNewest = "Newest"
-    static let sortByRecipe = "Group by Recipe"
-    static let sortOptions = [sortNewest, sortByRecipe]
 
     /// Ingredients minus anything the user has just checked/deleted.
     private var visibleIngredients: [IngredientItem] {
@@ -43,6 +39,19 @@ struct ShoppingListView: View {
         }
         .padding(.horizontal)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Menu {
+                    Picker("Sort", selection: $sort) {
+                        ForEach(ShoppingSort.allCases) { Text($0.title).tag($0) }
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                }
+                .accessibilityLabel("Sort")
+                .accessibilityIdentifier("shopping.sort")
+            }
+        }
         .onChange(of: dataManager.shoppingListIngredients.map(\.id)) { _, newIds in
             hiddenIds = hiddenIds.intersection(Set(newIds))
         }
@@ -52,7 +61,7 @@ struct ShoppingListView: View {
 
     @ViewBuilder
     private var listContent: some View {
-        if sortOption == Self.sortByRecipe {
+        if sort == .byRecipe {
             ForEach(groupedSections) { section in
                 sectionHeader(section)
                 ForEach(section.items) { ingredient in

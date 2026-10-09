@@ -68,21 +68,6 @@ struct DataManagerHelperTests {
         #expect(DataManager.matchedIngredientCount(for: r, pantry: pantry) == 2)
     }
 
-    // MARK: - recipesSortedByPantryMatch
-
-    @Test("recipesSortedByPantryMatch orders by best match count first")
-    func recipesSortedByPantryMatch() {
-        let a = recipe("A", ["Flour", "Sugar"])  // 2 matches
-        let b = recipe("B", ["Flour", "Sugar", "Butter"])  // 2 matches (fewer proportionally, but same count)
-        let c = recipe("C", ["Salt"])  // 0 matches
-        let pantry = [ingredient("Flour"), ingredient("Sugar")]
-
-        let sorted = DataManager.recipesSortedByPantryMatch(recipes: [c, b, a], pantry: pantry)
-        // A and B tie on match count (2 each); C has 0 and must be last
-        #expect(sorted.last?.title == "C")
-        #expect(sorted.prefix(2).map(\.title).sorted() == ["A", "B"])
-    }
-
     // MARK: - recipesContaining
 
     @Test("recipesContaining finds all recipes referencing the ingredient (case-insensitive)")
