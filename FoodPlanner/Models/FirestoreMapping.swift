@@ -52,7 +52,9 @@ enum FirestoreMapping {
     /// Parses a pantry or shopping-list document. `id` is the document ID (the ingredient key).
     static func listItem(from data: [String: Any], id: String) -> IngredientItem? {
         guard let name = data["Name"] as? String else { return nil }
-        return IngredientItem(id: id, name: name, quantity: double(data["Quantity"]), unit: data["Unit"] as? String)
+        return IngredientItem(
+            id: id, name: name, quantity: double(data["Quantity"]), unit: data["Unit"] as? String,
+            note: data["Note"] as? String)
     }
 
     // MARK: - Helpers
