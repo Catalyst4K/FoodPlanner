@@ -20,7 +20,7 @@ struct RecipeDetailView: View {
     // Inline editing. Rather than pushing a separate edit page (which caused a jarring
     // reload/reshuffle on pop-back once Firestore echoed the write), editing happens in
     // place: `isEditing` flips the detail view into an editable form backed by `editVM`.
-    @StateObject private var editVM = RecipeListViewModel()
+    @StateObject private var editVM = RecipeFormViewModel()
     @State private var isEditing = false
     @State private var newIngredientText = ""
     @FocusState private var isAddIngredientFocused: Bool

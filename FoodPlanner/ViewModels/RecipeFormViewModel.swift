@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Owns the transient form state for AddRecipeView. Reads/writes recipes via DataManager.
-class RecipeListViewModel: ObservableObject {
+class RecipeFormViewModel: ObservableObject {
     @Published var title: String = ""
     @Published var ingredients: [IngredientItem] = []
     @Published var instructions: String = ""

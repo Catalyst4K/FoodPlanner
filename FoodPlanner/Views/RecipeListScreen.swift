@@ -104,7 +104,7 @@ struct RecipeListScreen: View {
     private var addRecipeButton: some View {
         HStack {
             Spacer()
-            NavigationLink(destination: AddRecipeView(viewModel: RecipeListViewModel())) {
+            NavigationLink(destination: AddRecipeView(viewModel: RecipeFormViewModel())) {
                 Text("Add Recipe")
                     .font(.headline)
                     .padding()
