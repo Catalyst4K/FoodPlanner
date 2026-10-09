@@ -13,6 +13,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: swift-format lint
+        run: make lint
+
   # Needs no secrets: the app is built against ci/GoogleService-Info.plist,
   # which contains only fake values for the emulator project.
   build-test:
@@ -51,6 +59,15 @@ jobs:
           if grep -E "^$GITHUB_WORKSPACE/(FoodPlanner|FoodPlannerTests|FoodPlannerUITests)/.*warning:" build-output/build.log; then
             echo "::error::Compiler warnings in app code"; exit 1
           fi
+
+      - name: Coverage ratchet
+        run: scripts/check-coverage.sh build-output/unit.xcresult
+
+      - name: Third-party licences are up to date
+        run: |
+          scripts/generate-third-party-licenses.sh
+          git diff --exit-code -- THIRD-PARTY-LICENSES.md FoodPlanner/Resources/Acknowledgements.json \
+            || { echo "::error::Run 'make licenses' and commit the result"; exit 1; }
 
       - name: Upload test results on failure
         if: failure()
