@@ -1,9 +1,3 @@
-//
-//  NewIngredient.swift
-//  FoodPlanner
-//
-//  Created by Callum Jones on 07/05/2025.
-//
 import Foundation
 
 struct IngredientItem: Identifiable {

@@ -1,10 +1,3 @@
-//
-//  SplashScreenView.swift
-//  FoodPlanner
-//
-//  Created by Callum Jones on 14/04/2025.
-//
-
 import SwiftUI
 
 struct SplashScreenView: View {
