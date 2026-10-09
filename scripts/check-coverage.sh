@@ -4,8 +4,9 @@
 # same PR that raises coverage; never lower it to make a build green.
 #
 # Business logic = FoodPlanner/Models/** and FoodPlanner/ViewModels/**, except
-# Models/DataManager.swift (mostly Firestore plumbing; excluded until
-# integration tests cover it, plan 8.5). Views are covered by UI tests.
+# Models/DataManager.swift and ViewModels/AuthViewModel.swift (thin Firebase
+# plumbing; excluded until integration tests cover them, plan 8.5). Pure logic
+# they use lives in separate, covered files. Views are covered by UI tests.
 #
 # Usage: scripts/check-coverage.sh path/to/tests.xcresult
 set -euo pipefail
@@ -27,7 +28,7 @@ for target in report["targets"]:
         path = f["path"]
         if "/FoodPlanner/Models/" not in path and "/FoodPlanner/ViewModels/" not in path:
             continue
-        if path.endswith("/DataManager.swift"):
+        if path.endswith(("/DataManager.swift", "/AuthViewModel.swift")):
             continue
         covered += f["coveredLines"]
         total += f["executableLines"]

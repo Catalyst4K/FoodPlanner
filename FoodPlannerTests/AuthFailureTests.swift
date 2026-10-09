@@ -38,7 +38,7 @@ struct AuthFailureTests {
     }
 }
 
-@Suite("AuthViewModel.failure(from:)")
+@Suite("AuthFailure(firebaseError:)")
 struct AuthFailureMappingTests {
     private func error(_ code: AuthErrorCode) -> Error {
         NSError(domain: AuthErrorDomain, code: code.rawValue)
@@ -58,17 +58,17 @@ struct AuthFailureMappingTests {
             (.userDisabled, .userDisabled),
         ]
         for (code, failure) in expected {
-            #expect(AuthViewModel.failure(from: error(code)) == failure)
+            #expect(AuthFailure(firebaseError: error(code)) == failure)
         }
     }
 
     @Test func unknownCodesAndForeignErrorsBecomeUnknown() {
-        #expect(AuthViewModel.failure(from: error(.internalError)) == .unknown)
-        #expect(AuthViewModel.failure(from: NSError(domain: "SomethingElse", code: 17)) == .unknown)
+        #expect(AuthFailure(firebaseError: error(.internalError)) == .unknown)
+        #expect(AuthFailure(firebaseError: NSError(domain: "SomethingElse", code: 17)) == .unknown)
     }
 
     @Test func wrongPasswordAndUnknownUserAreIndistinguishable() {
         #expect(
-            AuthViewModel.failure(from: error(.wrongPassword)) == AuthViewModel.failure(from: error(.userNotFound)))
+            AuthFailure(firebaseError: error(.wrongPassword)) == AuthFailure(firebaseError: error(.userNotFound)))
     }
 }
