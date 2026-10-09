@@ -410,7 +410,7 @@ struct RecipeDetailView: View {
             }
 
             Button {
-                Task { await dataManager.toggleShareRecipe(recipeId: recipe.id) }
+                Task { await dataManager.setShared(recipeId: recipe.id, isShared: !recipe.isShared) }
             } label: {
                 Label(
                     recipe.isShared ? "Unshare" : "Share",

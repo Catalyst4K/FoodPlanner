@@ -14,10 +14,8 @@ class DataManager: ObservableObject {
     private let db = Firestore.firestore()
     private var listeners: [ListenerRegistration] = []
 
-    // Per-listener fetch tasks. When a snapshot arrives, we cancel the previous fetch task
-    // so a slow older snapshot can't overwrite a newer one (listener race).
-    private var userRecipesFetchTask: Task<Void, Never>?
-    private var sharedRecipesFetchTask: Task<Void, Never>?
+    // Pantry and shopping-list fetch tasks (removed in plan task 1.5): when a snapshot arrives, the
+    // previous fetch is cancelled so a slow older snapshot can't overwrite a newer one.
     private var pantryFetchTask: Task<Void, Never>?
     private var shoppingFetchTask: Task<Void, Never>?
 
@@ -50,273 +48,124 @@ class DataManager: ObservableObject {
         let registration = ref.addSnapshotListener { [weak self] snapshot, error in
             guard let self = self else { return }
             if let error = error {
-                print("Error fetching user recipes: \(error.localizedDescription)")
+                self.report(error, context: "Recipes")
                 return
             }
             guard let docs = snapshot?.documents else { return }
-
-            self.userRecipesFetchTask?.cancel()
-            self.userRecipesFetchTask = Task { [weak self] in
-                guard let self = self else { return }
-                let recipes = await self.buildRecipes(from: docs)
-                if Task.isCancelled { return }
-                withAnimation(.easeOut(duration: 0.25)) {
-                    self.userRecipes = recipes
-                }
+            let recipes = Self.recipes(from: docs)
+            withAnimation(.easeOut(duration: 0.25)) {
+                self.userRecipes = recipes
             }
         }
         listeners.append(registration)
     }
 
     private func listenToSharedRecipes() {
-        let query = db.collectionGroup("Recipes").whereField("IsShared", isEqualTo: true)
+        // Needs a composite collection-group index (IsShared ASC, CreatedAt DESC): firebase/firestore.indexes.json.
+        // If it's missing, Firestore's error includes a console link to create it.
+        let query = db.collectionGroup("Recipes")
+            .whereField("IsShared", isEqualTo: true)
+            .order(by: "CreatedAt", descending: true)
+            .limit(to: 200)
         let registration = query.addSnapshotListener { [weak self] snapshot, error in
             guard let self = self else { return }
             if let error = error {
-                // Surface loudly — the most common cause here is a missing composite index that
-                // Firestore prompts for on first query. Its console URL is in the underlying error.
-                print("Error fetching shared recipes: \(error.localizedDescription)")
-                Task { await self.report(error, context: "Shared recipes") }
+                self.report(error, context: "Shared recipes")
                 return
             }
             guard let docs = snapshot?.documents else { return }
-
-            self.sharedRecipesFetchTask?.cancel()
-            self.sharedRecipesFetchTask = Task { [weak self] in
-                guard let self = self else { return }
-                let recipes = await self.buildRecipes(from: docs)
-                if Task.isCancelled { return }
-                withAnimation(.easeOut(duration: 0.25)) {
-                    // Exclude the current user's own recipes; they're already in userRecipes.
-                    self.sharedRecipes = recipes.filter { $0.ownerId != self.currentUserId }
-                }
+            let recipes = Self.recipes(from: docs)
+            withAnimation(.easeOut(duration: 0.25)) {
+                // Exclude the current user's own recipes; they're already in userRecipes.
+                self.sharedRecipes = recipes.filter { $0.ownerId != self.currentUserId }
             }
         }
         listeners.append(registration)
     }
 
-    private func buildRecipes(from docs: [QueryDocumentSnapshot]) async -> [Recipe] {
-        // Sort newest-first by CreatedAt. Use `.estimate` so freshly-written docs whose
-        // server timestamp hasn't resolved yet sort at their eventual position (avoids
-        // a visible jump when the server confirms). Docs missing CreatedAt go to the end.
-        let sortedDocs = docs.sorted { a, b in
-            let aTime = (a.data(with: .estimate)["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
-            let bTime = (b.data(with: .estimate)["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
-            return aTime > bTime
+    /// Parses recipe documents synchronously, newest first. Documents that don't match schema v2
+    /// (for example old v1 recipes whose ingredients lived in a subcollection) are skipped and logged.
+    private static func recipes(from docs: [QueryDocumentSnapshot]) -> [Recipe] {
+        // `.estimate` places freshly-written docs, whose server timestamp hasn't resolved yet, at their
+        // eventual position (no visible jump when the server confirms). Docs without CreatedAt go last.
+        func createdAt(_ doc: QueryDocumentSnapshot) -> Date {
+            (doc.data(with: .estimate)["CreatedAt"] as? Timestamp)?.dateValue() ?? .distantPast
         }
-
-        return await withTaskGroup(of: (Int, Recipe?).self) { group in
-            for (index, doc) in sortedDocs.enumerated() {
-                group.addTask { [weak self] in
-                    let recipe = await self?.parseRecipeDoc(doc)
-                    return (index, recipe)
-                }
-            }
-            var indexed: [(Int, Recipe)] = []
-            for await (index, recipe) in group {
-                if let recipe = recipe { indexed.append((index, recipe)) }
-            }
-            return indexed.sorted { $0.0 < $1.0 }.map { $0.1 }
+        return docs.sorted { createdAt($0) > createdAt($1) }.compactMap { doc in
+            let fallbackOwnerId = doc.reference.parent.parent?.documentID ?? ""
+            let recipe = FirestoreMapping.recipe(
+                from: doc.data(with: .estimate), id: doc.documentID, fallbackOwnerId: fallbackOwnerId)
+            if recipe == nil { print("Skipping recipe that doesn't match schema v2: \(doc.reference.path)") }
+            return recipe
         }
     }
 
-    private func parseRecipeDoc(_ doc: QueryDocumentSnapshot) async -> Recipe? {
-        let data = doc.data()
-        guard let title = data["Name"] as? String,
-            let instructions = data["Instructions"] as? String
-        else {
-            print("Skipping recipe with missing fields: \(doc.reference.path)")
-            return nil
-        }
-        // OwnerId derived from path if not present (for legacy or resilience)
-        let ownerId =
-            (data["OwnerId"] as? String)
-            ?? doc.reference.parent.parent?.documentID
-            ?? ""
-        let isShared = data["IsShared"] as? Bool ?? false
-
-        let ingredients = await fetchRecipeIngredients(subcollection: doc.reference.collection("Ingredients"))
-        return Recipe(
-            id: doc.documentID,
-            title: title,
-            ingredients: ingredients,
-            instructions: instructions,
-            ownerId: ownerId,
-            isShared: isShared
-        )
+    private var userRecipesRef: CollectionReference {
+        db.collection("Users").document(currentUserId).collection("Recipes")
     }
 
-    private func fetchRecipeIngredients(subcollection: CollectionReference) async -> [IngredientItem] {
+    /// Adds a recipe owned by the current user, unshared. One atomic write.
+    /// `sourcePath` records where a copy came from (`Users/{owner}/Recipes/{id}`).
+    @discardableResult
+    func addRecipe(recipe: Recipe, sourcePath: String? = nil) async -> Bool {
+        var fields = FirestoreMapping.recipeFields(recipe)
+        fields["OwnerId"] = currentUserId
+        fields["IsShared"] = false
+        fields["CreatedAt"] = FieldValue.serverTimestamp()
+        fields["UpdatedAt"] = FieldValue.serverTimestamp()
+        if let sourcePath { fields["SourceRecipePath"] = sourcePath }
         do {
-            let snap = try await subcollection.getDocuments()
-            // Recipe ingredients are ordered by the explicit `Order` index written on each doc,
-            // so the list stays in the order the user entered rather than the arbitrary doc-ID
-            // order Firestore would otherwise return. Legacy docs without `Order` sort to the end.
-            let sortedDocs = snap.documents.sorted { a, b in
-                let aOrder = (a.data()["Order"] as? Int) ?? Int.max
-                let bOrder = (b.data()["Order"] as? Int) ?? Int.max
-                if aOrder != bOrder { return aOrder < bOrder }
-                return a.documentID < b.documentID
-            }
-            return await fetchIngredientsPreservingOrder(from: sortedDocs, refField: "Ref")
+            try await userRecipesRef.document().setData(fields)
+            return true
         } catch {
-            print("Error fetching ingredients from \(subcollection.path): \(error.localizedDescription)")
-            return []
+            report(error, context: "Adding recipe")
+            return false
         }
     }
 
-    /// Same per-doc parallel fetch as `fetchIngredients`, but skips the CreatedAt sort — the caller
-    /// has already sorted the docs in the required order (e.g. by `Order` for recipe subcollections).
-    private func fetchIngredientsPreservingOrder(from sortedDocs: [QueryDocumentSnapshot], refField: String) async
-        -> [IngredientItem]
-    {
-        return await withTaskGroup(of: (Int, IngredientItem?).self) { group in
-            for (index, doc) in sortedDocs.enumerated() {
-                guard let ref = doc.data()[refField] as? DocumentReference else { continue }
-                let quantity = doc.data()["Quantity"] as? Double
-                let unit = doc.data()["Unit"] as? String
-                group.addTask { [weak self] in
-                    let item = await self?.fetchIngredient(from: ref, quantity: quantity, unit: unit)
-                    return (index, item)
-                }
-            }
-            var indexed: [(Int, IngredientItem)] = []
-            for await (index, item) in group {
-                if let item = item { indexed.append((index, item)) }
-            }
-            return indexed.sorted { $0.0 < $1.0 }.map { $0.1 }
-        }
-    }
-
-    func addRecipe(recipe: Recipe) async {
-        let userRecipesRef = db.collection("Users").document(currentUserId).collection("Recipes")
-        let newRecipeRef = userRecipesRef.document()
-
-        // Resolve all ingredients in parallel (case-insensitive dedup on /Ingredients).
-        // Tag each with its original index and re-sort: a task group yields results in
-        // completion order, so without this the `Order` written below would reflect network
-        // timing rather than the user's entered order, scrambling the list on read-back.
-        let pending = await resolveIngredientsPreservingOrder(recipe.ingredients)
-
+    /// Updates a recipe's title, instructions and ingredients in one atomic write. `UpdatedAt` always
+    /// changes, so the listener fires even if only ingredients differ.
+    @discardableResult
+    func updateRecipe(recipeId: String, recipe: Recipe) async -> Bool {
+        var fields = FirestoreMapping.recipeFields(recipe)
+        fields["UpdatedAt"] = FieldValue.serverTimestamp()
         do {
-            // Write the Ingredients subcollection FIRST. Subcollection writes don't require the
-            // parent doc to exist, and importantly they don't trigger the /Users/{uid}/Recipes
-            // listener — so we avoid a snapshot where the recipe exists with zero ingredients.
-            // Each ingredient is tagged with an explicit `Order` index so the list preserves the
-            // user's insertion order on read (subcollection docs have no inherent order otherwise
-            // and would come back shuffled by doc-ID). Writes run in parallel to minimise latency
-            // before the parent recipe write fires the listener.
-            let ingredientSubRef = newRecipeRef.collection("Ingredients")
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                for (index, entry) in pending.enumerated() {
-                    group.addTask {
-                        var data: [String: Any] = ["Ref": entry.ref, "Order": index]
-                        if let quantity = entry.quantity { data["Quantity"] = quantity }
-                        if let unit = entry.unit, !unit.isEmpty { data["Unit"] = unit }
-                        try await ingredientSubRef.addDocument(data: data)
-                    }
-                }
-                try await group.waitForAll()
-            }
-
-            // Now write the recipe doc; the listener fires once with the ingredients already there.
-            try await newRecipeRef.setData([
-                "Name": recipe.title,
-                "Instructions": recipe.instructions,
-                "OwnerId": currentUserId,
-                "IsShared": false,
-                "CreatedAt": FieldValue.serverTimestamp(),
-            ])
-            print("Recipe successfully added.")
+            try await userRecipesRef.document(recipeId).updateData(fields)
+            return true
         } catch {
-            await report(error, context: "Adding recipe")
+            report(error, context: "Updating recipe")
+            return false
         }
     }
 
-    /// Updates an existing recipe's title, instructions, and ingredients. Ingredients subcollection is
-    /// replaced wholesale (delete + rewrite). The recipe doc is touched last so the listener refires
-    /// only after the subcollection is in its final state.
-    func updateRecipe(recipeId: String, recipe: Recipe) async {
-        let recipeRef = db.collection("Users").document(currentUserId).collection("Recipes").document(recipeId)
-        let ingredientSubRef = recipeRef.collection("Ingredients")
-
-        // Resolve ingredients (dedup /Ingredients) in parallel, preserving the user's entered
-        // order (see resolveIngredientsPreservingOrder) so the `Order` written below is correct.
-        let pending = await resolveIngredientsPreservingOrder(recipe.ingredients)
-
+    @discardableResult
+    func deleteRecipe(recipeId: String) async -> Bool {
         do {
-            // Replace the Ingredients subcollection. Deletes and adds both run in parallel to
-            // minimise the delay before the parent recipe write fires the listener. Each new
-            // ingredient is tagged with an explicit `Order` index so insertion order survives
-            // the round-trip (subcollection docs otherwise come back shuffled by doc-ID).
-            let existing = try await ingredientSubRef.getDocuments()
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                for doc in existing.documents {
-                    group.addTask { try await doc.reference.delete() }
-                }
-                try await group.waitForAll()
-            }
-            try await withThrowingTaskGroup(of: Void.self) { group in
-                for (index, entry) in pending.enumerated() {
-                    group.addTask {
-                        var data: [String: Any] = ["Ref": entry.ref, "Order": index]
-                        if let quantity = entry.quantity { data["Quantity"] = quantity }
-                        if let unit = entry.unit, !unit.isEmpty { data["Unit"] = unit }
-                        try await ingredientSubRef.addDocument(data: data)
-                    }
-                }
-                try await group.waitForAll()
-            }
-
-            // Touch the recipe doc last so the listener refetches with the new subcollection.
-            // Always include an UpdatedAt server timestamp: if the user only edited
-            // ingredients, Name and Instructions are unchanged and Firestore treats the
-            // updateData as a no-op that does NOT fire snapshot listeners — meaning the
-            // parent recipe listener never re-runs buildRecipes, so the new ingredients
-            // never propagate to `userRecipes` and the detail view stays stale until some
-            // other real write (e.g. toggling share) forces the listener to fire.
-            try await recipeRef.updateData([
-                "Name": recipe.title,
-                "Instructions": recipe.instructions,
-                "UpdatedAt": FieldValue.serverTimestamp(),
-            ])
-            print("Recipe \(recipeId) updated.")
+            try await userRecipesRef.document(recipeId).delete()
+            return true
         } catch {
-            await report(error, context: "Updating recipe")
+            report(error, context: "Deleting recipe")
+            return false
         }
     }
 
-    /// Deletes the current user's recipe, including its Ingredients subcollection (Firestore doesn't cascade).
-    func deleteRecipe(recipeId: String) async {
-        let recipeRef = db.collection("Users").document(currentUserId).collection("Recipes").document(recipeId)
+    /// Sets whether the current user's recipe is shared with other signed-in users.
+    @discardableResult
+    func setShared(recipeId: String, isShared: Bool) async -> Bool {
         do {
-            let ingredientsSnap = try await recipeRef.collection("Ingredients").getDocuments()
-            for doc in ingredientsSnap.documents {
-                try await doc.reference.delete()
-            }
-            try await recipeRef.delete()
-            print("Successfully deleted recipe \(recipeId)")
+            try await userRecipesRef.document(recipeId).updateData(["IsShared": isShared])
+            return true
         } catch {
-            await report(error, context: "Deleting recipe")
+            report(error, context: "Updating recipe sharing")
+            return false
         }
     }
 
-    /// Toggles the IsShared flag on the current user's recipe.
-    func toggleShareRecipe(recipeId: String) async {
-        let recipeRef = db.collection("Users").document(currentUserId).collection("Recipes").document(recipeId)
-        do {
-            let snap = try await recipeRef.getDocument()
-            let currentlyShared = snap.data()?["IsShared"] as? Bool ?? false
-            try await recipeRef.updateData(["IsShared": !currentlyShared])
-        } catch {
-            await report(error, context: "Toggling recipe sharing")
-        }
-    }
-
-    /// Copies a shared recipe into the current user's list. The copy is owned by the user and starts unshared.
-    /// The original owner's recipe is unaffected.
-    func saveSharedRecipeToMyList(_ recipe: Recipe) async {
-        await addRecipe(recipe: recipe)
+    /// Copies a shared recipe into the current user's list. The copy is owned by the user and starts
+    /// unshared; the original is unaffected.
+    @discardableResult
+    func saveSharedRecipeToMyList(_ recipe: Recipe) async -> Bool {
+        await addRecipe(recipe: recipe, sourcePath: "Users/\(recipe.ownerId)/Recipes/\(recipe.id)")
     }
 
     // MARK: - Pantry
@@ -353,7 +202,7 @@ class DataManager: ObservableObject {
                 ])
             }
         } catch {
-            await report(error, context: "Adding to pantry")
+            report(error, context: "Adding to pantry")
         }
     }
 
@@ -366,7 +215,7 @@ class DataManager: ObservableObject {
                 try await doc.reference.delete()
             }
         } catch {
-            await report(error, context: "Removing from pantry")
+            report(error, context: "Removing from pantry")
         }
     }
 
@@ -404,7 +253,7 @@ class DataManager: ObservableObject {
                 ])
             }
         } catch {
-            await report(error, context: "Adding to shopping list")
+            report(error, context: "Adding to shopping list")
         }
     }
 
@@ -417,7 +266,7 @@ class DataManager: ObservableObject {
                 try await doc.reference.delete()
             }
         } catch {
-            await report(error, context: "Removing from shopping list")
+            report(error, context: "Removing from shopping list")
         }
     }
 
@@ -517,7 +366,7 @@ class DataManager: ObservableObject {
             ])
             return newRef
         } catch {
-            await report(error, context: "Saving ingredient")
+            report(error, context: "Saving ingredient")
             return nil
         }
     }
@@ -576,7 +425,7 @@ class DataManager: ObservableObject {
         do {
             try await batch.commit()
         } catch {
-            await report(error, context: "Adding to shopping list")
+            report(error, context: "Adding to shopping list")
         }
     }
 
