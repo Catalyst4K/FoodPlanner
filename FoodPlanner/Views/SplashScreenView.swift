@@ -3,8 +3,8 @@ import SwiftUI
 struct SplashScreenView: View {
     var body: some View {
         ZStack {
-            Color.white.ignoresSafeArea()
-            Text("Recipe App")
+            Color(.systemBackground).ignoresSafeArea()
+            Text("FoodPlanner")
                 .font(.largeTitle)
                 .fontWeight(.bold)
         }

@@ -6,19 +6,37 @@ struct RecipeListScreen: View {
     @State private var showingShared: Bool = false
 
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    headerView
-                    scopePicker
-                    emptyStateView
-                    recipeListView
-                    if !showingShared { addRecipeButton }
-                }
-                .padding(.horizontal)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                headerView
+                scopePicker
+                emptyStateView
+                recipeListView
+                if !showingShared { addRecipeButton }
             }
-            .navigationBarHidden(true)
+            .padding(.horizontal)
         }
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(for: RecipeRoute.self) { route in
+            switch route {
+            case .detail(let id):
+                if let recipe = recipe(withID: id) {
+                    RecipeDetailView(recipe: recipe)
+                }
+            case .add:
+                AddRecipeView(viewModel: RecipeFormViewModel())
+            }
+        }
+    }
+
+    /// Where the Recipes stack can go. Detail pages are identified by recipe ID.
+    enum RecipeRoute: Hashable {
+        case detail(String)
+        case add
+    }
+
+    private func recipe(withID id: String) -> Recipe? {
+        dataManager.userRecipes.first { $0.id == id } ?? dataManager.sharedRecipes.first { $0.id == id }
     }
 
     private var headerView: some View {
@@ -59,7 +77,7 @@ struct RecipeListScreen: View {
     private var recipeListView: some View {
         LazyVStack(spacing: 0) {
             ForEach(visibleRecipes) { recipe in
-                NavigationLink(destination: RecipeDetailView(recipe: recipe)) {
+                NavigationLink(value: RecipeRoute.detail(recipe.id)) {
                     row(for: recipe)
                 }
                 Divider()
@@ -104,7 +122,7 @@ struct RecipeListScreen: View {
     private var addRecipeButton: some View {
         HStack {
             Spacer()
-            NavigationLink(destination: AddRecipeView(viewModel: RecipeFormViewModel())) {
+            NavigationLink(value: RecipeRoute.add) {
                 Text("Add Recipe")
                     .font(.headline)
                     .padding()
@@ -113,6 +131,7 @@ struct RecipeListScreen: View {
                     .foregroundColor(.white)
                     .cornerRadius(12)
             }
+            .accessibilityIdentifier("recipes.add")
             Spacer()
         }
         .padding(.vertical, 24)

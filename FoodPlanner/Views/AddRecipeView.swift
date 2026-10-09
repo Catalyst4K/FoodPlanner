@@ -29,6 +29,7 @@ struct AddRecipeView: View {
 
     private var titleField: some View {
         TextField("Recipe Title", text: $viewModel.title)
+            .accessibilityIdentifier("addRecipe.title")
             .font(.title)
             .fontWeight(.bold)
             .padding(.top, 40)
@@ -97,6 +98,7 @@ struct AddRecipeView: View {
             .buttonStyle(.plain)
 
             TextField("Add ingredient", text: $newIngredientText)
+                .accessibilityIdentifier("addRecipe.ingredientField")
                 .focused($isAddIngredientFocused)
                 .padding(.vertical, 10)
                 .padding(.horizontal, 4)
@@ -133,9 +135,10 @@ struct AddRecipeView: View {
                 .padding(.top, 20)
 
             TextEditor(text: $viewModel.instructions)
+                .accessibilityIdentifier("addRecipe.instructions")
                 .frame(minHeight: 150)
                 .padding(10)
-                .background(Color.white)
+                .background(Color(.secondarySystemBackground))
                 .cornerRadius(20)
                 .font(.body)
                 .padding(.horizontal)
@@ -162,6 +165,7 @@ struct AddRecipeView: View {
                 .frame(maxWidth: .infinity)
             }
             .disabled(!viewModel.isFormValid())
+            .accessibilityIdentifier("addRecipe.submit")
             .padding(.bottom, 20)
             Spacer()
         }

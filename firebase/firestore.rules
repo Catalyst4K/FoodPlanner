@@ -10,40 +10,36 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
-    // A recipe may carry OwnerId, but it must be the writer's own uid (the app derives the
-    // owner from it). Docs from before OwnerId existed have none, so allow it to be absent.
+    // Schema v2 recipe (docs/IMPLEMENTATION_PLAN.md, Appendix A): ingredients are an inline array,
+    // OwnerId is the writer's uid and can't change, and only known fields are allowed.
     function validRecipe() {
       let d = request.resource.data;
-      return d.Name is string && d.Name.size() > 0 && d.Name.size() <= 200
+      return d.keys().hasOnly(['Name', 'Instructions', 'Ingredients', 'Servings', 'OwnerId', 'OwnerName',
+          'IsShared', 'SourceRecipePath', 'ImagePath', 'CreatedAt', 'UpdatedAt'])
+        && d.Name is string && d.Name.size() > 0 && d.Name.size() <= 200
         && d.Instructions is string && d.Instructions.size() <= 20000
-        && (!('OwnerId' in d) || d.OwnerId == request.auth.uid)
-        && (!('IsShared' in d) || d.IsShared is bool);
+        && d.Ingredients is list && d.Ingredients.size() <= 100
+        && d.OwnerId == request.auth.uid
+        && d.IsShared is bool
+        && (!('Servings' in d) || (d.Servings is int && d.Servings >= 1 && d.Servings <= 100))
+        && (!('OwnerName' in d) || (d.OwnerName is string && d.OwnerName.size() <= 100))
+        && (!('SourceRecipePath' in d) || (d.SourceRecipePath is string && d.SourceRecipePath.size() <= 200))
+        && (!('ImagePath' in d) || (d.ImagePath is string && d.ImagePath.size() <= 200));
     }
 
-    function validRecipeIngredient() {
+    // Pantry and shopping-list items: the document ID is the normalised ingredient key (computed in the
+    // app); the document holds the display name and, for the shopping list, optional amount details.
+    function validListItem() {
       let d = request.resource.data;
-      return d.Ref is path
-        && d.Order is int
+      return d.keys().hasOnly(['Name', 'Quantity', 'Unit', 'Note', 'CreatedAt'])
+        && d.Name is string && d.Name.size() > 0 && d.Name.size() <= 100
         && (!('Quantity' in d) || d.Quantity is number)
-        && (!('Unit' in d) || (d.Unit is string && d.Unit.size() <= 40));
+        && (!('Unit' in d) || (d.Unit is string && d.Unit.size() <= 20))
+        && (!('Note' in d) || (d.Note is string && d.Note.size() <= 200));
     }
 
-    function validIngredientLink() {
-      return request.resource.data.Ingredient is path;
-    }
-
-    // Global Ingredients dictionary: any signed-in user can read and add an entry, but only
-    // the two known fields, with bounded names, and entries are immutable.
-    match /Ingredients/{ingredientId} {
-      allow read: if signedIn();
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['Name', 'NameLower'])
-        && request.resource.data.Name is string
-        && request.resource.data.Name.size() > 0 && request.resource.data.Name.size() <= 80
-        && request.resource.data.NameLower is string
-        && request.resource.data.NameLower.size() > 0 && request.resource.data.NameLower.size() <= 80;
-      allow update, delete: if false;
-    }
+    // The v1 global /Ingredients collection is retired (DEC-3): no rule, so every access is denied.
+    // Ingredient attributes will live in a read-only Catalogue collection later.
 
     // Collection-group query for shared recipes: db.collectionGroup("Recipes")
     // .whereField("IsShared", ==, true) in DataManager.listenToSharedRecipes.
@@ -59,30 +55,19 @@ service cloud.firestore {
 
       match /Recipes/{recipeId} {
         allow read: if signedIn() && (request.auth.uid == userId || resource.data.IsShared == true);
-        allow create, update: if isOwner(userId) && validRecipe();
+        allow create: if isOwner(userId) && validRecipe();
+        allow update: if isOwner(userId) && validRecipe() && resource.data.OwnerId == request.resource.data.OwnerId;
         allow delete: if isOwner(userId);
-
-        // Ingredient entries follow their recipe: the owner, or anyone if the recipe is shared.
-        // Writes can't use get() on the parent (addRecipe writes ingredients before the parent
-        // doc exists, DataManager.swift), so they are owner-only with field checks instead.
-        match /Ingredients/{ingredientRefId} {
-          allow read: if isOwner(userId)
-            || (signedIn()
-              && get(/databases/$(database)/documents/Users/$(userId)/Recipes/$(recipeId))
-                .data.get('IsShared', false) == true);
-          allow create, update: if isOwner(userId) && validRecipeIngredient();
-          allow delete: if isOwner(userId);
-        }
       }
 
       match /Pantry/{ingredientId} {
         allow read, delete: if isOwner(userId);
-        allow create, update: if isOwner(userId) && validIngredientLink();
+        allow create, update: if isOwner(userId) && validListItem();
       }
 
       match /ShoppingList/{ingredientId} {
         allow read, delete: if isOwner(userId);
-        allow create, update: if isOwner(userId) && validIngredientLink();
+        allow create, update: if isOwner(userId) && validListItem();
       }
     }
   }

@@ -14,7 +14,10 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
+  orderBy,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where,
@@ -26,7 +29,6 @@ const BOB = "bob";
 
 const as = (uid) => env.authenticatedContext(uid).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
-const ing = (db, id = "ing-flour") => doc(db, `Ingredients/${id}`);
 
 before(async () => {
   env = await initializeTestEnvironment({
@@ -41,68 +43,87 @@ beforeEach(async () => {
   // Seed with rules disabled: alice has a private and a shared recipe, each with one ingredient.
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(ing(db), { Name: "Flour", NameLower: "flour" });
     for (const [id, shared] of [["private", false], ["shared", true]]) {
       await setDoc(doc(db, `Users/${ALICE}/Recipes/${id}`), {
         Name: id, Instructions: "Mix.", OwnerId: ALICE, IsShared: shared,
-      });
-      await setDoc(doc(db, `Users/${ALICE}/Recipes/${id}/Ingredients/i0`), {
-        Ref: ing(db), Order: 0, Quantity: 100, Unit: "g",
+        Ingredients: [{ Name: "Flour", Quantity: 100, Unit: "g" }],
       });
     }
-    await setDoc(doc(db, `Users/${ALICE}/Pantry/p1`), { Ingredient: ing(db) });
-    await setDoc(doc(db, `Users/${ALICE}/ShoppingList/s1`), { Ingredient: ing(db) });
-    // A recipe from before OwnerId existed.
-    await setDoc(doc(db, `Users/${ALICE}/Recipes/legacy`), { Name: "Old", Instructions: "x" });
+    await setDoc(doc(db, `Users/${ALICE}/Pantry/flour`), { Name: "Flour", CreatedAt: new Date() });
+    await setDoc(doc(db, `Users/${ALICE}/ShoppingList/milk`), { Name: "Milk", CreatedAt: new Date() });
   });
 });
 
 describe("unauthenticated users", () => {
   it("cannot read or write anything", async () => {
     const db = anon();
-    await assertFails(getDoc(ing(db)));
     await assertFails(getDoc(doc(db, `Users/${ALICE}/Recipes/shared`)));
     await assertFails(getDoc(doc(db, `Users/${ALICE}/Recipes/shared/Ingredients/i0`)));
-    await assertFails(getDoc(doc(db, `Users/${ALICE}/Pantry/p1`)));
-    await assertFails(setDoc(doc(db, `Users/${ALICE}/Pantry/p2`), { Ingredient: ing(db) }));
+    await assertFails(getDoc(doc(db, `Users/${ALICE}/Pantry/flour`)));
+    await assertFails(setDoc(doc(db, `Users/${ALICE}/Pantry/rice`), { Name: "Rice" }));
     await assertFails(getDocs(query(collectionGroup(db, "Recipes"), where("IsShared", "==", true))));
   });
 });
 
-describe("global Ingredients", () => {
-  it("signed-in users can read and create a valid entry", async () => {
-    const db = as(BOB);
-    await assertSucceeds(getDoc(ing(db)));
-    await assertSucceeds(setDoc(ing(db, "ing-rice"), { Name: "Rice", NameLower: "rice" }));
-  });
-  it("accepts accented names (the app lowercases with Swift, not with the rules language)", async () => {
-    await assertSucceeds(setDoc(ing(as(BOB), "ing-eclair"), { Name: "Éclair", NameLower: "éclair" }));
-  });
-  it("rejects extra fields, empty and oversized names", async () => {
-    const db = as(BOB);
-    await assertFails(setDoc(ing(db, "a"), { Name: "Rice", NameLower: "rice", Evil: "x" }));
-    await assertFails(setDoc(ing(db, "c"), { Name: "", NameLower: "" }));
-    const long = "x".repeat(81);
-    await assertFails(setDoc(ing(db, "d"), { Name: long, NameLower: long }));
-  });
-  it("entries are immutable", async () => {
-    const db = as(BOB);
-    await assertFails(updateDoc(ing(db), { Name: "Hacked" }));
-    await assertFails(deleteDoc(ing(db)));
+describe("retired global Ingredients collection", () => {
+  it("is closed to everyone", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "Ingredients/old"), { Name: "Flour", NameLower: "flour" });
+    });
+    for (const db of [as(ALICE), as(BOB), anon()]) {
+      await assertFails(getDoc(doc(db, "Ingredients/old")));
+      await assertFails(setDoc(doc(db, "Ingredients/new"), { Name: "Rice", NameLower: "rice" }));
+      await assertFails(getDocs(collection(db, "Ingredients")));
+    }
   });
 });
 
-describe("recipes", () => {
+describe("recipes (schema v2)", () => {
   const recipe = (db, id) => doc(db, `Users/${ALICE}/Recipes/${id}`);
+  const valid = (extra = {}) => ({
+    Name: "New", Instructions: "Cook", OwnerId: ALICE, IsShared: false,
+    Ingredients: [{ Name: "Rice", Quantity: 1.5, Unit: "cup" }, { Name: "Salt" }], ...extra,
+  });
   it("owner can read, create, update, delete", async () => {
     const db = as(ALICE);
     await assertSucceeds(getDoc(recipe(db, "private")));
-    await assertSucceeds(
-      setDoc(recipe(db, "new"), { Name: "New", Instructions: "Cook", OwnerId: ALICE, IsShared: false }),
-    );
+    await assertSucceeds(setDoc(recipe(db, "new"), valid()));
     await assertSucceeds(updateDoc(recipe(db, "new"), { Name: "Renamed" }));
     await assertSucceeds(updateDoc(recipe(db, "new"), { IsShared: true }));
+    await assertSucceeds(updateDoc(recipe(db, "new"), { Ingredients: [{ Name: "Oats" }] }));
     await assertSucceeds(deleteDoc(recipe(db, "new")));
+  });
+  it("accepts exactly the payloads DataManager sends (server timestamps included)", async () => {
+    const db = as(ALICE);
+    const ref = recipe(db, "from-app");
+    // addRecipe: FirestoreMapping.recipeFields + OwnerId, IsShared, CreatedAt, UpdatedAt
+    await assertSucceeds(
+      setDoc(ref, {
+        Name: "Pancakes", Instructions: "Mix.", Ingredients: [{ Name: "Flour", Quantity: 150, Unit: "g" }, { Name: "Eggs", Quantity: 2 }],
+        OwnerId: ALICE, IsShared: false, CreatedAt: serverTimestamp(), UpdatedAt: serverTimestamp(),
+      }),
+    );
+    // updateRecipe: recipeFields + UpdatedAt
+    await assertSucceeds(
+      updateDoc(ref, {
+        Name: "Better pancakes", Instructions: "Whisk.", Ingredients: [{ Name: "Flour" }], UpdatedAt: serverTimestamp(),
+      }),
+    );
+    // setShared
+    await assertSucceeds(updateDoc(ref, { IsShared: true }));
+    // saveSharedRecipeToMyList: addRecipe with SourceRecipePath
+    await assertSucceeds(
+      setDoc(recipe(db, "copy"), {
+        Name: "Copy", Instructions: "", Ingredients: [], OwnerId: ALICE, IsShared: false,
+        SourceRecipePath: `Users/${BOB}/Recipes/abc123`, CreatedAt: serverTimestamp(), UpdatedAt: serverTimestamp(),
+      }),
+    );
+  });
+  it("accepts optional fields: servings, source path, timestamps", async () => {
+    const db = as(ALICE);
+    await assertSucceeds(
+      setDoc(recipe(db, "full"), valid({ Servings: 4, SourceRecipePath: `Users/${BOB}/Recipes/x` })),
+    );
   });
   it("other users can read a shared recipe but not a private one", async () => {
     const db = as(BOB);
@@ -113,85 +134,94 @@ describe("recipes", () => {
     const db = as(BOB);
     await assertFails(updateDoc(recipe(db, "shared"), { Name: "Hacked" }));
     await assertFails(deleteDoc(recipe(db, "shared")));
-    await assertFails(setDoc(recipe(db, "mine"), { Name: "x", Instructions: "y", OwnerId: BOB }));
+    await assertFails(setDoc(recipe(db, "mine"), valid({ OwnerId: BOB })));
   });
-  it("cannot claim another user as OwnerId", async () => {
+  it("OwnerId must be the writer and can't change", async () => {
     const db = as(ALICE);
-    await assertFails(setDoc(recipe(db, "spoof"), { Name: "x", Instructions: "y", OwnerId: BOB }));
+    await assertFails(setDoc(recipe(db, "spoof"), valid({ OwnerId: BOB })));
+    const { OwnerId, ...noOwner } = valid();
+    await assertFails(setDoc(recipe(db, "anon"), noOwner));
+    await assertFails(updateDoc(recipe(db, "private"), { OwnerId: BOB }));
+  });
+  it("requires an Ingredients array of at most 100 entries", async () => {
+    const db = as(ALICE);
+    const { Ingredients, ...none } = valid();
+    await assertFails(setDoc(recipe(db, "n1"), none));
+    await assertFails(setDoc(recipe(db, "n2"), valid({ Ingredients: "flour" })));
+    await assertFails(setDoc(recipe(db, "n3"), valid({ Ingredients: Array(101).fill({ Name: "x" }) })));
+    await assertSucceeds(setDoc(recipe(db, "n4"), valid({ Ingredients: Array(100).fill({ Name: "x" }) })));
+  });
+  it("rejects unknown fields", async () => {
+    await assertFails(setDoc(recipe(as(ALICE), "extra"), valid({ Evil: "x" })));
   });
   it("enforces field types and size limits", async () => {
     const db = as(ALICE);
-    await assertFails(setDoc(recipe(db, "t1"), { Name: 5, Instructions: "y", OwnerId: ALICE }));
-    await assertFails(setDoc(recipe(db, "t2"), { Name: "x", Instructions: "y".repeat(20001), OwnerId: ALICE }));
-    await assertFails(setDoc(recipe(db, "t3"), { Name: "x".repeat(201), Instructions: "y", OwnerId: ALICE }));
-    await assertFails(setDoc(recipe(db, "t4"), { Name: "x", Instructions: "y", OwnerId: ALICE, IsShared: "yes" }));
-  });
-  it("owner can still edit a legacy recipe that has no OwnerId", async () => {
-    await assertSucceeds(updateDoc(recipe(as(ALICE), "legacy"), { Name: "Updated" }));
+    await assertFails(setDoc(recipe(db, "t1"), valid({ Name: 5 })));
+    await assertFails(setDoc(recipe(db, "t2"), valid({ Instructions: "y".repeat(20001) })));
+    await assertFails(setDoc(recipe(db, "t3"), valid({ Name: "x".repeat(201) })));
+    await assertFails(setDoc(recipe(db, "t4"), valid({ IsShared: "yes" })));
+    await assertFails(setDoc(recipe(db, "t5"), valid({ Servings: 0 })));
+    await assertFails(setDoc(recipe(db, "t6"), valid({ Servings: 2.5 })));
+    await assertFails(setDoc(recipe(db, "t7"), valid({ SourceRecipePath: "p".repeat(201) })));
   });
   it("shared recipes are discoverable by collection-group query; unconstrained queries are not", async () => {
     const db = as(BOB);
     const shared = await assertSucceeds(
       getDocs(query(collectionGroup(db, "Recipes"), where("IsShared", "==", true))),
     );
-    // One shared recipe, and nothing private leaks.
     assertEqual(shared.size, 1);
     await assertFails(getDocs(collectionGroup(db, "Recipes")));
   });
-});
-
-describe("recipe ingredient entries", () => {
-  const entry = (db, recipe) => doc(db, `Users/${ALICE}/Recipes/${recipe}/Ingredients/i0`);
-  it("owner can read and write them", async () => {
-    const db = as(ALICE);
-    await assertSucceeds(getDoc(entry(db, "private")));
-    await assertSucceeds(setDoc(doc(db, `Users/${ALICE}/Recipes/private/Ingredients/i1`),
-      { Ref: ing(db), Order: 1 }));
-    await assertSucceeds(deleteDoc(entry(db, "private")));
-  });
-  it("others can read entries of a shared recipe only", async () => {
+  it("the app's shared query (ordered, limited) is allowed", async () => {
     const db = as(BOB);
-    await assertSucceeds(getDoc(entry(db, "shared")));
-    await assertSucceeds(getDocs(collection(db, `Users/${ALICE}/Recipes/shared/Ingredients`)));
-    await assertFails(getDoc(entry(db, "private")));
-    await assertFails(getDocs(collection(db, `Users/${ALICE}/Recipes/private/Ingredients`)));
+    await assertSucceeds(
+      getDocs(
+        query(collectionGroup(db, "Recipes"), where("IsShared", "==", true), orderBy("CreatedAt", "desc"), limit(200)),
+      ),
+    );
   });
-  it("others cannot write them", async () => {
-    await assertFails(updateDoc(entry(as(BOB), "shared"), { Quantity: 999 }));
-  });
-  it("cannot be listed across all users", async () => {
-    await assertFails(getDocs(collectionGroup(as(BOB), "Ingredients")));
-    await assertFails(getDocs(collectionGroup(as(ALICE), "Ingredients")));
-  });
-  it("validates field types", async () => {
-    const db = as(ALICE);
-    const p = (id) => doc(db, `Users/${ALICE}/Recipes/private/Ingredients/${id}`);
-    await assertFails(setDoc(p("a"), { Ref: "not-a-ref", Order: 0 }));
-    await assertFails(setDoc(p("b"), { Ref: ing(db), Order: "first" }));
-    await assertFails(setDoc(p("c"), { Ref: ing(db), Order: 0, Quantity: "lots" }));
-    await assertFails(setDoc(p("d"), { Ref: ing(db), Order: 0, Unit: "u".repeat(41) }));
+  it("the v1 per-recipe ingredient subcollection is no longer accessible to anyone", async () => {
+    for (const uid of [ALICE, BOB]) {
+      const db = as(uid);
+      await assertFails(getDoc(doc(db, `Users/${ALICE}/Recipes/shared/Ingredients/i0`)));
+      await assertFails(getDocs(collectionGroup(db, "Ingredients")));
+    }
+    await assertFails(
+      setDoc(doc(as(ALICE), `Users/${ALICE}/Recipes/private/Ingredients/i1`), { Order: 1 }),
+    );
   });
 });
 
-describe("pantry and shopping list", () => {
+describe("pantry and shopping list (keyed documents)", () => {
   for (const name of ["Pantry", "ShoppingList"]) {
     const path = (id) => `Users/${ALICE}/${name}/${id}`;
-    const existing = name === "Pantry" ? "p1" : "s1";
+    const existing = name === "Pantry" ? "flour" : "milk";
     it(`${name}: owner has full access`, async () => {
       const db = as(ALICE);
       await assertSucceeds(getDoc(doc(db, path(existing))));
-      await assertSucceeds(setDoc(doc(db, path("new")), { Ingredient: ing(db) }));
-      await assertSucceeds(deleteDoc(doc(db, path("new"))));
+      await assertSucceeds(getDocs(collection(db, `Users/${ALICE}/${name}`)));
+      // The payload DataManager sends: Name plus a server timestamp.
+      await assertSucceeds(setDoc(doc(db, path("olive oil")), { Name: "Olive oil", CreatedAt: serverTimestamp() }));
+      await assertSucceeds(setDoc(doc(db, path("rice")), { Name: "Rice", Quantity: 2, Unit: "kg", Note: "brown" }));
+      await assertSucceeds(deleteDoc(doc(db, path("olive oil"))));
     });
     it(`${name}: other users have no access`, async () => {
       const db = as(BOB);
       await assertFails(getDoc(doc(db, path(existing))));
-      await assertFails(setDoc(doc(db, path("x")), { Ingredient: ing(db) }));
+      await assertFails(setDoc(doc(db, path("x")), { Name: "X" }));
       await assertFails(deleteDoc(doc(db, path(existing))));
       await assertFails(getDocs(collection(db, `Users/${ALICE}/${name}`)));
     });
-    it(`${name}: Ingredient must be a document reference`, async () => {
-      await assertFails(setDoc(doc(as(ALICE), path("bad")), { Ingredient: "flour" }));
+    it(`${name}: validates fields`, async () => {
+      const db = as(ALICE);
+      await assertFails(setDoc(doc(db, path("a")), {}));
+      await assertFails(setDoc(doc(db, path("b")), { Name: "" }));
+      await assertFails(setDoc(doc(db, path("c")), { Name: "x".repeat(101) }));
+      await assertFails(setDoc(doc(db, path("d")), { Name: 5 }));
+      await assertFails(setDoc(doc(db, path("e")), { Name: "X", Evil: "y" }));
+      await assertFails(setDoc(doc(db, path("f")), { Name: "X", Quantity: "lots" }));
+      await assertFails(setDoc(doc(db, path("g")), { Name: "X", Unit: "u".repeat(21) }));
+      await assertFails(setDoc(doc(db, path("h")), { Ingredient: "flour" }));
     });
   }
 });

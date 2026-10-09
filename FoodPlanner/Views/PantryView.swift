@@ -21,6 +21,15 @@ struct PantryView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    if visibleIngredients.isEmpty {
+                        ContentUnavailableView(
+                            "Your pantry is empty", systemImage: "refrigerator",
+                            description: Text(
+                                "Add what's in your cupboards and fridge, and recipes will show what you can cook.")
+                        )
+                        .padding(.top, 24)
+                        .accessibilityIdentifier("pantry.empty")
+                    }
                     ForEach(visibleIngredients) { ingredient in
                         row(for: ingredient)
                             .transition(.opacity)
@@ -53,6 +62,8 @@ struct PantryView: View {
                         .padding(5)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("pantry.delete.\(ingredient.name)")
+                .accessibilityLabel("Remove \(ingredient.name)")
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
@@ -73,6 +84,7 @@ struct PantryView: View {
             .buttonStyle(.plain)
 
             TextField("Add ingredient", text: $newItemText)
+                .accessibilityIdentifier("pantry.addField")
                 .focused($isAddFieldFocused)
                 .submitLabel(.return)
                 .onSubmit(commit)
@@ -106,7 +118,7 @@ struct PantryView: View {
         let trimmed = newItemText.trimmingCharacters(in: .whitespaces)
         newItemText = ""
         guard !trimmed.isEmpty else { return }
-        Task { await dataManager.addIngredientToPantry(name: trimmed) }
+        Task { await dataManager.addToPantry(name: trimmed) }
     }
 
     private func remove(_ ingredient: IngredientItem) {
@@ -114,6 +126,13 @@ struct PantryView: View {
         withAnimation(.easeOut(duration: 0.35)) {
             _ = hiddenIds.insert(ingredient.id)
         }
-        Task { await dataManager.removeIngredientFromPantry(ingredientId: ingredient.id) }
+        Task {
+            if await !dataManager.removeFromPantry(id: ingredient.id) {
+                // The write failed (the banner explains why): bring the row back.
+                withAnimation(.easeIn(duration: 0.25)) {
+                    _ = hiddenIds.remove(ingredient.id)
+                }
+            }
+        }
     }
 }

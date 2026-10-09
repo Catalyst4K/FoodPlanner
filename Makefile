@@ -9,7 +9,7 @@ SOURCES   := FoodPlanner FoodPlannerTests FoodPlannerUITests
 OUT       := build-output
 FIREBASE_PLIST := FoodPlanner/GoogleService-Info.plist
 
-.PHONY: help format lint build test test-ui coverage licenses screenshots check plist
+.PHONY: help format lint build test test-ui coverage licenses screenshots test-ui-emulated check plist
 
 help:
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*##/\t/'
@@ -41,6 +41,9 @@ coverage: plist ## Unit tests with coverage, then the ratchet check
 
 licenses: build ## Regenerate THIRD-PARTY-LICENSES.md and Acknowledgements.json
 	scripts/generate-third-party-licenses.sh
+
+test-ui-emulated: ## Signed-in UI tests against the Firebase emulators (needs Java 21)
+	scripts/ui-tests.sh
 
 screenshots: ## Regenerate docs/screenshots (needs Java 21: brew install openjdk@21)
 	scripts/screenshots.sh

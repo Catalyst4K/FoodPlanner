@@ -27,6 +27,14 @@ struct ShoppingListView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    if visibleIngredients.isEmpty {
+                        ContentUnavailableView(
+                            "Nothing to buy", systemImage: "cart",
+                            description: Text("Add items here, or add a recipe's missing ingredients from its page.")
+                        )
+                        .padding(.top, 24)
+                        .accessibilityIdentifier("shopping.empty")
+                    }
                     listContent
                     addRow
                     tapToAddSpacer
@@ -34,7 +42,7 @@ struct ShoppingListView: View {
             }
         }
         .padding(.horizontal)
-        .navigationBarHidden(true)
+        .navigationBarTitleDisplayMode(.inline)
         .onChange(of: dataManager.shoppingListIngredients.map(\.id)) { _, newIds in
             hiddenIds = hiddenIds.intersection(Set(newIds))
         }
@@ -79,47 +87,8 @@ struct ShoppingListView: View {
 
     // MARK: - Grouping
 
-    private struct ShoppingSection: Identifiable {
-        enum Kind { case multiRecipe, singleRecipe, other }
-        let id: String
-        let title: String
-        let items: [IngredientItem]
-        let kind: Kind
-    }
-
     private var groupedSections: [ShoppingSection] {
-        var multi: [IngredientItem] = []
-        var perRecipe: [(title: String, items: [IngredientItem])] = []
-        var perRecipeIndex: [String: Int] = [:]
-        var other: [IngredientItem] = []
-
-        for ingredient in visibleIngredients {
-            let recipes = dataManager.recipesContaining(ingredient)
-            if recipes.count >= 2 {
-                multi.append(ingredient)
-            } else if let recipe = recipes.first {
-                if let i = perRecipeIndex[recipe.title] {
-                    perRecipe[i].items.append(ingredient)
-                } else {
-                    perRecipeIndex[recipe.title] = perRecipe.count
-                    perRecipe.append((recipe.title, [ingredient]))
-                }
-            } else {
-                other.append(ingredient)
-            }
-        }
-
-        var sections: [ShoppingSection] = []
-        if !multi.isEmpty {
-            sections.append(.init(id: "__multi", title: "Used in multiple recipes", items: multi, kind: .multiRecipe))
-        }
-        for entry in perRecipe.sorted(by: { $0.title < $1.title }) {
-            sections.append(.init(id: entry.title, title: entry.title, items: entry.items, kind: .singleRecipe))
-        }
-        if !other.isEmpty {
-            sections.append(.init(id: "__other", title: "Other", items: other, kind: .other))
-        }
-        return sections
+        ShoppingSection.sections(items: visibleIngredients, recipes: dataManager.userRecipes)
     }
 
     // MARK: - Rows
@@ -134,6 +103,8 @@ struct ShoppingListView: View {
                         .foregroundColor(.gray)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("shopping.tick.\(ingredient.name)")
+                .accessibilityLabel("Mark \(ingredient.name) as bought")
 
                 Text(ingredient.name)
                     .foregroundColor(.primary)
@@ -147,6 +118,8 @@ struct ShoppingListView: View {
                         .padding(5)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("shopping.delete.\(ingredient.name)")
+                .accessibilityLabel("Remove \(ingredient.name)")
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
@@ -167,6 +140,7 @@ struct ShoppingListView: View {
             .buttonStyle(.plain)
 
             TextField("Add ingredient", text: $newItemText)
+                .accessibilityIdentifier("shopping.addField")
                 .focused($isAddFieldFocused)
                 .submitLabel(.return)
                 .onSubmit(commit)
@@ -199,7 +173,7 @@ struct ShoppingListView: View {
         let trimmed = newItemText.trimmingCharacters(in: .whitespaces)
         newItemText = ""
         guard !trimmed.isEmpty else { return }
-        Task { await dataManager.addIngredientToShoppingList(name: trimmed) }
+        Task { await dataManager.addToShoppingList(name: trimmed) }
     }
 
     private func check(_ ingredient: IngredientItem) {
@@ -207,13 +181,24 @@ struct ShoppingListView: View {
         withAnimation(.easeOut(duration: 0.35)) {
             _ = hiddenIds.insert(ingredient.id)
         }
-        Task { await dataManager.moveShoppingItemToPantry(ingredient) }
+        Task {
+            if await !dataManager.moveShoppingItemToPantry(ingredient) { unhide(ingredient) }
+        }
     }
 
     private func remove(_ ingredient: IngredientItem) {
         withAnimation(.easeOut(duration: 0.35)) {
             _ = hiddenIds.insert(ingredient.id)
         }
-        Task { await dataManager.removeIngredientFromShoppingList(ingredientId: ingredient.id) }
+        Task {
+            if await !dataManager.removeFromShoppingList(id: ingredient.id) { unhide(ingredient) }
+        }
+    }
+
+    /// The write failed (the banner explains why), so bring the optimistically hidden row back.
+    private func unhide(_ ingredient: IngredientItem) {
+        withAnimation(.easeIn(duration: 0.25)) {
+            _ = hiddenIds.remove(ingredient.id)
+        }
     }
 }
