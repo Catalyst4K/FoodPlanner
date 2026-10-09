@@ -1,10 +1,3 @@
-//
-//  FoodPlannerUITestsLaunchTests.swift
-//  FoodPlannerUITests
-//
-//  Created by Callum Jones on 10/04/2025.
-//
-
 import XCTest
 
 final class FoodPlannerUITestsLaunchTests: XCTestCase {

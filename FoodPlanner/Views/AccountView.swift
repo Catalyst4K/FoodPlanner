@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AccountView: View {
     @ObservedObject var authViewModel: AuthViewModel
+    @State private var showingAcknowledgements = false
 
     var body: some View {
         VStack(spacing: 20) {
@@ -24,7 +25,15 @@ struct AccountView: View {
                 Text("Not logged in")
                     .foregroundColor(.secondary)
             }
+
+            Button("Acknowledgements") {
+                showingAcknowledgements = true
+            }
+            .accessibilityIdentifier("account.acknowledgements")
         }
         .padding()
+        .sheet(isPresented: $showingAcknowledgements) {
+            AcknowledgementsView()
+        }
     }
 }

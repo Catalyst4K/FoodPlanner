@@ -10,7 +10,7 @@ DerivedData/
 
 # SwiftPM
 /.build/
-Package.resolved
+# Package.resolved is committed: it pins the exact dependency versions (see THIRD-PARTY-LICENSES.md)
 
 # CocoaPods
 Pods/
@@ -20,3 +20,22 @@ Carthage/
 
 # Firebase / Secrets
 GoogleService-Info.plist
+!/ci/GoogleService-Info.plist
+
+/build-output/
+
+# Firebase / tooling / signing material (see CLAUDE.md > Security)
+xcuserdata/
+node_modules/
+.firebase/
+firebase-debug*.log
+firestore-debug.log
+ui-debug.log
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+AuthKey_*.p8
+.env
+*-service-account*.json
+*.xcresult
