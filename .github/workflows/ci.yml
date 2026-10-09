@@ -33,6 +33,7 @@ jobs:
       - name: Build and run unit tests
         run: |
           set -o pipefail
+          mkdir -p build-output
           xcodebuild test \
             -project FoodPlanner.xcodeproj \
             -scheme FoodPlanner \
@@ -40,7 +41,16 @@ jobs:
             -only-testing:FoodPlannerTests \
             -enableCodeCoverage YES \
             -resultBundlePath build-output/unit.xcresult \
-            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+            | tee build-output/build.log
+
+      # SWIFT_TREAT_WARNINGS_AS_ERRORS=YES can't be passed on the command line:
+      # it also applies to the Firebase packages and breaks them. Fail on
+      # warnings in our own sources instead.
+      - name: Fail on warnings in app code
+        run: |
+          if grep -E "^$GITHUB_WORKSPACE/(FoodPlanner|FoodPlannerTests|FoodPlannerUITests)/.*warning:" build-output/build.log; then
+            echo "::error::Compiler warnings in app code"; exit 1
+          fi
 
       - name: Upload test results on failure
         if: failure()
