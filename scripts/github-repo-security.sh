@@ -12,6 +12,9 @@ set -euo pipefail
 REPO="${REPO:-Catalyst4K/FoodPlanner}"
 BRANCH="${BRANCH:-main}"
 REQUIRED_CHECKS="${REQUIRED_CHECKS:-build-test}" # comma-separated; add lint, rules once those jobs exist
+# "strict" would force every PR to be rebased on main before merging; for one person that mostly
+# adds friction (and re-queues slow macOS CI runs), so it is off unless STRICT=true.
+STRICT="${STRICT:-false}"
 DESCRIPTION="Plan meals around what's already in your kitchen: recipes, pantry and shopping list in SwiftUI + Firebase."
 HOMEPAGE="${HOMEPAGE:-}" # set to the GitHub Pages privacy page once it exists (plan 5.3)
 TOPICS=(ios swift swiftui firebase firestore swift-concurrency portfolio)
@@ -42,8 +45,8 @@ gh api -X PUT "repos/$REPO/private-vulnerability-reporting" >/dev/null
 # Branch protection (opt in)
 if [ "${PROTECT_MAIN:-0}" = "1" ]; then
   contexts=$(printf '%s' "$REQUIRED_CHECKS" | jq -R 'split(",")')
-  jq -n --argjson contexts "$contexts" '{
-    required_status_checks: {strict: true, contexts: $contexts},
+  jq -n --argjson contexts "$contexts" --argjson strict "$STRICT" '{
+    required_status_checks: {strict: $strict, contexts: $contexts},
     enforce_admins: true,
     required_pull_request_reviews: {required_approving_review_count: 0},
     restrictions: null,
