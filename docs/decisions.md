@@ -68,3 +68,13 @@ The entries below backfill the defaults chosen in `IMPLEMENTATION_PLAN.md` §4.
 - **Context:** The key in the leaked config was replaced some time before this entry, so the key in the public history is no longer the one the app uses. The current key still wasn't restricted.
 - **Decision:** Restrict the current key to the iOS bundle ID (`Callum.FoodPlanner`) and to the APIs the app uses (Identity Toolkit, Token Service, Cloud Firestore, Firebase Installations; App Check and Cloud Storage for Firebase once those features land). Remove the leaked key's access; confirm it is deleted in Google Cloud ▸ Credentials.
 - **Consequences:** The remaining values in the old config (project ID, app ID, bundle ID) can't be rotated, so Firestore security rules (Phase 2) remain the real protection for data. Until Phase 2 ships, check that the live rules are not open.
+
+## 2026-10-09 — DEC-1 resolved: no v1 → v2 migration
+- **Context:** DEC-1 defaulted to writing a one-time migration. The only data in Firestore is experimental, created while building the app.
+- **Decision:** Don't migrate. Skip plan task 1.6 (`LegacyMigrator`) and treat Firestore as empty when schema v2 lands. Callum deletes the old data in the console.
+- **Consequences:** No migration code or `SchemaVersion` bookkeeping to maintain. v1-shaped documents are simply ignored by the v2 mapping (it returns nil for them). If real user data ever exists before a future schema change, that change needs its own migration.
+
+## 2026-10-09 — DEC-3 refined: no user-writable ingredient collection; catalogue later
+- **Context:** DEC-3 retires the global `/Ingredients` collection that every user can create entries in. Callum raised that a shared ingredient dictionary could hold attributes such as nutrition values.
+- **Decision:** Retire the user-writable `/Ingredients` collection as planned: v2 stores ingredient names inline on recipes, pantry and shopping items, identified by the normalised `IngredientKey`. Ingredient attributes (nutrition, aisle, density) will live in a separate read-only `Catalogue/{ingredientKey}` collection, written only by the app owner (seed or admin tooling), never by clients, and joined on the same key.
+- **Consequences:** No abuse or cost surface from a collection anyone can write to, and no per-ingredient reads on the hot path. Attaching nutrition later needs no schema change to recipes: look up `Catalogue/{documentID(for: name)}`. The catalogue gets its own rules (read for signed-in users, no client writes), schema entry and decision when it is built (Phase 6+).
