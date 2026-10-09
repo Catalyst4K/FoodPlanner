@@ -57,3 +57,7 @@ Unit tests (`FoodPlannerTests`) use the **Swift Testing** framework (`import Tes
 **Orientation locking.** Individual screens can lock device orientation via `AppDelegate.setAllowedOrientations(_:)` (a static UIKit shim bridged into SwiftUI via `@UIApplicationDelegateAdaptor`); this is re-applied whenever `scenePhase` becomes `.active` to avoid a rotate-then-snap-back glitch.
 
 **UI test hooks.** Launching with `-uitest-signed-out` (checked in `FoodPlannerApp.init` under `#if DEBUG`) force-signs-out before the app UI is shown, so UI tests can reliably start at `LoginView`. Accessibility identifiers used by `FoodPlannerUITests` follow a `screen.element` convention (e.g. `login.title`, `login.email`, `login.submit`) — keep this convention when adding new interactive elements that tests should target.
+
+## Dependencies
+
+Swift packages (Firebase) are embedded in the Xcode project, which Dependabot can't track. Once a month, check the [firebase-ios-sdk releases](https://github.com/firebase/firebase-ios-sdk/releases) and read the release notes before bumping. Don't bump a major version without a full test run.

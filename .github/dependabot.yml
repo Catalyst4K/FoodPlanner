@@ -1,0 +1,25 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
+
+  # Firebase rules tests (the /firebase directory is added in Phase 2).
+  - package-ecosystem: npm
+    directory: /firebase
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "deps"
+
+  # Swift packages are intentionally absent: the Firebase SDK is embedded in
+  # FoodPlanner.xcodeproj (there is no Package.swift), which Dependabot's
+  # `swift` ecosystem doesn't reliably support. See CLAUDE.md "Dependencies".
