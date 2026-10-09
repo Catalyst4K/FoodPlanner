@@ -2,6 +2,7 @@ import SwiftUI
 import Firebase
 import FirebaseFirestore
 
+@MainActor
 class DataManager: ObservableObject {
     @Published var userRecipes: [Recipe] = []
     @Published var sharedRecipes: [Recipe] = []
@@ -32,14 +33,12 @@ class DataManager: ObservableObject {
         listeners.forEach { $0.remove() }
     }
 
-    @MainActor
     private func report(_ error: Error, context: String) {
         let message = "\(context): \(error.localizedDescription)"
         print(message)
         errorMessage = message
     }
 
-    @MainActor
     func clearError() {
         errorMessage = nil
     }
@@ -61,10 +60,8 @@ class DataManager: ObservableObject {
                 guard let self = self else { return }
                 let recipes = await self.buildRecipes(from: docs)
                 if Task.isCancelled { return }
-                await MainActor.run {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        self.userRecipes = recipes
-                    }
+                withAnimation(.easeOut(duration: 0.25)) {
+                    self.userRecipes = recipes
                 }
             }
         }
@@ -89,11 +86,9 @@ class DataManager: ObservableObject {
                 guard let self = self else { return }
                 let recipes = await self.buildRecipes(from: docs)
                 if Task.isCancelled { return }
-                await MainActor.run {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        // Exclude the current user's own recipes; they're already in userRecipes.
-                        self.sharedRecipes = recipes.filter { $0.ownerId != self.currentUserId }
-                    }
+                withAnimation(.easeOut(duration: 0.25)) {
+                    // Exclude the current user's own recipes; they're already in userRecipes.
+                    self.sharedRecipes = recipes.filter { $0.ownerId != self.currentUserId }
                 }
             }
         }
@@ -339,10 +334,8 @@ class DataManager: ObservableObject {
                 guard let self = self else { return }
                 let items = await self.fetchIngredients(from: docs, refField: "Ingredient")
                 if Task.isCancelled { return }
-                await MainActor.run {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        self.pantryIngredients = items
-                    }
+                withAnimation(.easeOut(duration: 0.25)) {
+                    self.pantryIngredients = items
                 }
             }
         }
@@ -392,10 +385,8 @@ class DataManager: ObservableObject {
                 guard let self = self else { return }
                 let items = await self.fetchIngredients(from: docs, refField: "Ingredient")
                 if Task.isCancelled { return }
-                await MainActor.run {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        self.shoppingListIngredients = items
-                    }
+                withAnimation(.easeOut(duration: 0.25)) {
+                    self.shoppingListIngredients = items
                 }
             }
         }
@@ -616,7 +607,7 @@ class DataManager: ObservableObject {
 
     // MARK: - Pure helpers (testable — no Firebase dependency)
 
-    static func ingredientsWithStatus(
+    nonisolated static func ingredientsWithStatus(
         for recipe: Recipe,
         pantry: [IngredientItem],
         shopping: [IngredientItem]
@@ -629,23 +620,23 @@ class DataManager: ObservableObject {
         }
     }
 
-    static func hasMissingIngredients(for recipe: Recipe, pantry: [IngredientItem]) -> Bool {
+    nonisolated static func hasMissingIngredients(for recipe: Recipe, pantry: [IngredientItem]) -> Bool {
         let pantryNames = Set(pantry.map { IngredientKey.normalized($0.name) })
         return recipe.ingredients.contains { !pantryNames.contains(IngredientKey.normalized($0.name)) }
     }
 
-    static func matchedIngredientCount(for recipe: Recipe, pantry: [IngredientItem]) -> Int {
+    nonisolated static func matchedIngredientCount(for recipe: Recipe, pantry: [IngredientItem]) -> Int {
         let pantryNames = Set(pantry.map { IngredientKey.normalized($0.name) })
         return recipe.ingredients.filter { pantryNames.contains(IngredientKey.normalized($0.name)) }.count
     }
 
-    static func recipesSortedByPantryMatch(recipes: [Recipe], pantry: [IngredientItem]) -> [Recipe] {
+    nonisolated static func recipesSortedByPantryMatch(recipes: [Recipe], pantry: [IngredientItem]) -> [Recipe] {
         recipes.sorted {
             matchedIngredientCount(for: $0, pantry: pantry) > matchedIngredientCount(for: $1, pantry: pantry)
         }
     }
 
-    static func recipesContaining(_ ingredient: IngredientItem, in recipes: [Recipe]) -> [Recipe] {
+    nonisolated static func recipesContaining(_ ingredient: IngredientItem, in recipes: [Recipe]) -> [Recipe] {
         let key = IngredientKey.normalized(ingredient.name)
         return recipes.filter { recipe in
             recipe.ingredients.contains { IngredientKey.normalized($0.name) == key }
