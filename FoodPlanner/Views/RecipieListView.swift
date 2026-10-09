@@ -42,14 +42,16 @@ struct RecipeListScreen: View {
     private var emptyStateView: some View {
         Group {
             if visibleRecipes.isEmpty {
-                Text(showingShared
-                     ? "No shared recipes yet.\nWhen someone shares a recipe, it'll appear here."
-                     : "Looks like you don't have any recipes yet.\nTry adding one!")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
+                Text(
+                    showingShared
+                        ? "No shared recipes yet.\nWhen someone shares a recipe, it'll appear here."
+                        : "Looks like you don't have any recipes yet.\nTry adding one!"
+                )
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
             }
         }
     }

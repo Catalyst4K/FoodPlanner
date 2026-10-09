@@ -36,7 +36,8 @@ struct RecipeDetailView: View {
 
     private func syncFromDataManager() {
         if let updated = dataManager.userRecipes.first(where: { $0.id == recipeId })
-            ?? dataManager.sharedRecipes.first(where: { $0.id == recipeId }) {
+            ?? dataManager.sharedRecipes.first(where: { $0.id == recipeId })
+        {
             recipe = updated
         }
     }
@@ -49,7 +50,8 @@ struct RecipeDetailView: View {
         if let updated = newRecipes.first(where: { $0.id == recipeId }) {
             recipe = updated
         } else if fallbackToShared,
-                  let updated = dataManager.sharedRecipes.first(where: { $0.id == recipeId }) {
+            let updated = dataManager.sharedRecipes.first(where: { $0.id == recipeId })
+        {
             recipe = updated
         }
     }

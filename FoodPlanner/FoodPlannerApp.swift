@@ -8,11 +8,16 @@ import UIKit
 class AppDelegate: NSObject, UIApplicationDelegate {
     static var orientationLock: UIInterfaceOrientationMask = .portrait
 
-    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?)
+        -> UIInterfaceOrientationMask
+    {
         AppDelegate.orientationLock
     }
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
         // Match every window's background to systemBackground so any edge exposed during
         // rotation (before SwiftUI fills the new frame) blends in instead of showing black.
         DispatchQueue.main.async {
@@ -51,7 +56,8 @@ extension AppDelegate {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         for scene in scenes {
             for window in scene.windows {
-                let alreadyInstalled = window.gestureRecognizers?.contains { $0.name == keyboardDismissGestureName } ?? false
+                let alreadyInstalled =
+                    window.gestureRecognizers?.contains { $0.name == keyboardDismissGestureName } ?? false
                 if alreadyInstalled { continue }
                 let tap = UITapGestureRecognizer(target: window, action: #selector(UIView.endEditing))
                 tap.name = keyboardDismissGestureName
@@ -86,10 +92,10 @@ struct FoodPlannerApp: App {
     init() {
         FirebaseApp.configure()
         #if DEBUG
-        // UI test entry point: force a signed-out state so tests always start at Login.
-        if ProcessInfo.processInfo.arguments.contains("-uitest-signed-out") {
-            try? Auth.auth().signOut()
-        }
+            // UI test entry point: force a signed-out state so tests always start at Login.
+            if ProcessInfo.processInfo.arguments.contains("-uitest-signed-out") {
+                try? Auth.auth().signOut()
+            }
         #endif
     }
 
@@ -98,7 +104,7 @@ struct FoodPlannerApp: App {
         if let user = authViewModel.user {
             AuthenticatedRoot(authViewModel: authViewModel, userId: user.uid)
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
-                .id(user.uid) // Rebuild the DataManager if the signed-in user changes
+                .id(user.uid)  // Rebuild the DataManager if the signed-in user changes
         } else {
             LoginView(authViewModel: authViewModel)
         }
