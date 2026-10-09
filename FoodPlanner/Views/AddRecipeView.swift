@@ -86,44 +86,13 @@ struct AddRecipeView: View {
     }
 
     private var addIngredientRow: some View {
-        HStack {
-            Button {
-                commitIngredient()
-                isAddIngredientFocused = true
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .foregroundColor(.gray)
-                    .padding(.leading)
-            }
-            .buttonStyle(.plain)
-
-            TextField("Add ingredient", text: $newIngredientText)
-                .accessibilityIdentifier("addRecipe.ingredientField")
-                .focused($isAddIngredientFocused)
-                .padding(.vertical, 10)
-                .padding(.horizontal, 4)
-                .submitLabel(.return)
-                .onSubmit(commitIngredient)
-        }
-        .padding(.horizontal)
-        .onChange(of: isAddIngredientFocused) { was, _ in
-            if was { commitIngredient() }
-        }
+        QuickAddRow(
+            text: $newIngredientText, isFocused: $isAddIngredientFocused, fieldIdentifier: "addRecipe.ingredientField",
+            onCommit: commitIngredient)
     }
 
-    // Fills the empty area under the ingredient list. Tap toggles: focuses the add field
-    // when idle, dismisses the keyboard when already typing.
     private var tapToAddSpacer: some View {
-        Color.clear
-            .contentShape(Rectangle())
-            .frame(minHeight: 120)
-            .onTapGesture {
-                if isAddIngredientFocused {
-                    isAddIngredientFocused = false
-                } else {
-                    isAddIngredientFocused = true
-                }
-            }
+        TapToFocusSpacer(isFocused: $isAddIngredientFocused)
     }
 
     private var instructionsSection: some View {
