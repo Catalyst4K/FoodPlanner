@@ -2,7 +2,7 @@ import Foundation
 
 /// A group of shopping-list items shown under one heading when the list is grouped by recipe.
 struct ShoppingSection: Identifiable {
-    enum Kind { case multiRecipe, singleRecipe, other }
+    enum Kind { case multiRecipe, singleRecipe, other, aisle }
 
     /// A recipe's ID for single-recipe sections (so two recipes with the same title stay separate).
     let id: String
@@ -51,5 +51,15 @@ struct ShoppingSection: Identifiable {
             sections.append(ShoppingSection(id: otherID, title: "Other", items: other, kind: .other))
         }
         return sections
+    }
+
+    /// Groups `items` by supermarket aisle, in walking order, leaving out empty aisles. Item order within an
+    /// aisle follows `items`.
+    static func sectionsByAisle(items: [IngredientItem]) -> [ShoppingSection] {
+        let grouped = Dictionary(grouping: items) { AisleClassifier.aisle(for: $0.name) }
+        return Aisle.allCases.compactMap { aisle in
+            guard let items = grouped[aisle] else { return nil }
+            return ShoppingSection(id: aisle.id, title: aisle.title, items: items, kind: .aisle)
+        }
     }
 }

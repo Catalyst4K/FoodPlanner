@@ -76,7 +76,7 @@ struct SortOptionsTests {
 
     @Test func everyOptionHasATitleAndStableRawValue() {
         #expect(RecipeSort.allCases.map(\.rawValue) == ["pantryMatch", "name", "newest"])
-        #expect(ShoppingSort.allCases.map(\.rawValue) == ["newest", "byRecipe"])
+        #expect(ShoppingSort.allCases.map(\.rawValue) == ["newest", "byRecipe", "byAisle"])
         #expect(RecipeSort.allCases.allSatisfy { !$0.title.isEmpty && $0.id == $0.rawValue })
         #expect(ShoppingSort.allCases.allSatisfy { !$0.title.isEmpty && $0.id == $0.rawValue })
     }

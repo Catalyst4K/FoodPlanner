@@ -130,6 +130,27 @@ final class SignedInFlowTests: XCTestCase {
     }
 
     @MainActor
+    func test_shoppingListCanBeGroupedByAisle() throws {
+        let app = launch()
+        _ = signUp(app)
+        app.tabBars.buttons["Shopping"].tap()
+        let field = app.textFields["shopping.addField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        type("Milk\n", into: field, in: app)
+        XCTAssertTrue(app.buttons["shopping.tick.Milk"].waitForExistence(timeout: 10))
+        type("Carrots\n", into: field, in: app)
+        XCTAssertTrue(app.buttons["shopping.tick.Carrots"].waitForExistence(timeout: 10))
+
+        app.buttons["shopping.sort"].tap()
+        app.buttons["Group by aisle"].tap()
+        XCTAssertTrue(app.staticTexts["Produce"].waitForExistence(timeout: 5), "Carrots belong under Produce")
+        XCTAssertTrue(app.staticTexts["Dairy & Eggs"].exists, "Milk belongs under Dairy & Eggs")
+        XCTAssertLessThan(
+            app.staticTexts["Produce"].frame.minY, app.staticTexts["Dairy & Eggs"].frame.minY,
+            "Aisles are in walking order")
+    }
+
+    @MainActor
     func test_sortMenuReordersRecipes() throws {
         let app = launch()
         _ = signUp(app)

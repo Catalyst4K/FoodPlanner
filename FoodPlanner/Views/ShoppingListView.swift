@@ -61,7 +61,7 @@ struct ShoppingListView: View {
 
     @ViewBuilder
     private var listContent: some View {
-        if sort == .byRecipe {
+        if sort != .newest {
             ForEach(groupedSections) { section in
                 sectionHeader(section)
                 ForEach(section.items) { ingredient in
@@ -97,7 +97,8 @@ struct ShoppingListView: View {
     // MARK: - Grouping
 
     private var groupedSections: [ShoppingSection] {
-        ShoppingSection.sections(items: visibleIngredients, recipes: dataManager.userRecipes)
+        if sort == .byAisle { return ShoppingSection.sectionsByAisle(items: visibleIngredients) }
+        return ShoppingSection.sections(items: visibleIngredients, recipes: dataManager.userRecipes)
     }
 
     // MARK: - Rows
