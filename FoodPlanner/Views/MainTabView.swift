@@ -47,6 +47,8 @@ struct MainTabView: View {
                         } label: {
                             Image(systemName: "gearshape").imageScale(.large)
                         }
+                        .accessibilityLabel("Account")
+                        .accessibilityIdentifier("tabs.account")
                     }
 
                     ToolbarItem(placement: .navigationBarLeading) {

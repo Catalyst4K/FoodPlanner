@@ -113,6 +113,7 @@ struct RecipeListScreen: View {
                     .foregroundColor(.white)
                     .cornerRadius(12)
             }
+            .accessibilityIdentifier("recipes.add")
             Spacer()
         }
         .padding(.vertical, 24)

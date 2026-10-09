@@ -134,6 +134,8 @@ struct ShoppingListView: View {
                         .foregroundColor(.gray)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("shopping.tick.\(ingredient.name)")
+                .accessibilityLabel("Mark \(ingredient.name) as bought")
 
                 Text(ingredient.name)
                     .foregroundColor(.primary)
@@ -147,6 +149,8 @@ struct ShoppingListView: View {
                         .padding(5)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("shopping.delete.\(ingredient.name)")
+                .accessibilityLabel("Remove \(ingredient.name)")
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
@@ -167,6 +171,7 @@ struct ShoppingListView: View {
             .buttonStyle(.plain)
 
             TextField("Add ingredient", text: $newItemText)
+                .accessibilityIdentifier("shopping.addField")
                 .focused($isAddFieldFocused)
                 .submitLabel(.return)
                 .onSubmit(commit)

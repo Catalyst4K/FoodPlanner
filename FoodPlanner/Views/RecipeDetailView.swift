@@ -135,6 +135,7 @@ struct RecipeDetailView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save", action: saveEdit)
+                        .accessibilityIdentifier("detail.edit.save")
                         .fontWeight(.semibold)
                         .disabled(!editVM.isFormValid())
                 }
@@ -247,6 +248,7 @@ struct RecipeDetailView: View {
 
     private var editTitleField: some View {
         TextField("Recipe Title", text: $editVM.title)
+            .accessibilityIdentifier("detail.edit.title")
             .font(.title)
             .fontWeight(.bold)
             .padding(.top, 40)
@@ -347,6 +349,7 @@ struct RecipeDetailView: View {
                 .padding(.top, 20)
 
             TextEditor(text: $editVM.instructions)
+                .accessibilityIdentifier("detail.edit.instructions")
                 .frame(minHeight: 150)
                 .padding(10)
                 .background(Color.white)
@@ -489,6 +492,7 @@ struct RecipeDetailView: View {
                         .padding(5)
                         .opacity(didPressAddAll ? 0.4 : 1.0)
                     }
+                    .accessibilityIdentifier("detail.addAll")
                 }
             }
 
@@ -501,6 +505,8 @@ struct RecipeDetailView: View {
                             .foregroundColor(status.isInPantry ? .green : .gray)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("detail.pantry.\(status.ingredient.name)")
+                    .accessibilityLabel(status.isInPantry ? "In pantry" : "Not in pantry")
 
                     Text(status.ingredient.name)
                         .font(.body)
@@ -516,6 +522,8 @@ struct RecipeDetailView: View {
                                 .foregroundColor(status.isInShoppingList ? .blue : .gray)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("detail.cart.\(status.ingredient.name)")
+                        .accessibilityLabel(status.isInShoppingList ? "On shopping list" : "Not on shopping list")
                     }
                 }
             }

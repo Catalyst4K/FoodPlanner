@@ -53,6 +53,8 @@ struct PantryView: View {
                         .padding(5)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("pantry.delete.\(ingredient.name)")
+                .accessibilityLabel("Remove \(ingredient.name)")
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
@@ -73,6 +75,7 @@ struct PantryView: View {
             .buttonStyle(.plain)
 
             TextField("Add ingredient", text: $newItemText)
+                .accessibilityIdentifier("pantry.addField")
                 .focused($isAddFieldFocused)
                 .submitLabel(.return)
                 .onSubmit(commit)
