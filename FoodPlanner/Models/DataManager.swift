@@ -229,7 +229,7 @@ class DataManager: ObservableObject {
             ])
             print("Recipe successfully added.")
         } catch {
-            await report(error, context: "Adding recipe")
+            report(error, context: "Adding recipe")
         }
     }
 
@@ -282,7 +282,7 @@ class DataManager: ObservableObject {
             ])
             print("Recipe \(recipeId) updated.")
         } catch {
-            await report(error, context: "Updating recipe")
+            report(error, context: "Updating recipe")
         }
     }
 
@@ -297,7 +297,7 @@ class DataManager: ObservableObject {
             try await recipeRef.delete()
             print("Successfully deleted recipe \(recipeId)")
         } catch {
-            await report(error, context: "Deleting recipe")
+            report(error, context: "Deleting recipe")
         }
     }
 
@@ -309,7 +309,7 @@ class DataManager: ObservableObject {
             let currentlyShared = snap.data()?["IsShared"] as? Bool ?? false
             try await recipeRef.updateData(["IsShared": !currentlyShared])
         } catch {
-            await report(error, context: "Toggling recipe sharing")
+            report(error, context: "Toggling recipe sharing")
         }
     }
 
@@ -353,7 +353,7 @@ class DataManager: ObservableObject {
                 ])
             }
         } catch {
-            await report(error, context: "Adding to pantry")
+            report(error, context: "Adding to pantry")
         }
     }
 
@@ -366,7 +366,7 @@ class DataManager: ObservableObject {
                 try await doc.reference.delete()
             }
         } catch {
-            await report(error, context: "Removing from pantry")
+            report(error, context: "Removing from pantry")
         }
     }
 
@@ -404,7 +404,7 @@ class DataManager: ObservableObject {
                 ])
             }
         } catch {
-            await report(error, context: "Adding to shopping list")
+            report(error, context: "Adding to shopping list")
         }
     }
 
@@ -417,7 +417,7 @@ class DataManager: ObservableObject {
                 try await doc.reference.delete()
             }
         } catch {
-            await report(error, context: "Removing from shopping list")
+            report(error, context: "Removing from shopping list")
         }
     }
 
@@ -517,7 +517,7 @@ class DataManager: ObservableObject {
             ])
             return newRef
         } catch {
-            await report(error, context: "Saving ingredient")
+            report(error, context: "Saving ingredient")
             return nil
         }
     }
@@ -576,7 +576,7 @@ class DataManager: ObservableObject {
         do {
             try await batch.commit()
         } catch {
-            await report(error, context: "Adding to shopping list")
+            report(error, context: "Adding to shopping list")
         }
     }
 
