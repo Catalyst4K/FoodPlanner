@@ -128,12 +128,14 @@ class DataManager: ObservableObject {
     private func parseRecipeDoc(_ doc: QueryDocumentSnapshot) async -> Recipe? {
         let data = doc.data()
         guard let title = data["Name"] as? String,
-              let instructions = data["Instructions"] as? String else {
+            let instructions = data["Instructions"] as? String
+        else {
             print("Skipping recipe with missing fields: \(doc.reference.path)")
             return nil
         }
         // OwnerId derived from path if not present (for legacy or resilience)
-        let ownerId = (data["OwnerId"] as? String)
+        let ownerId =
+            (data["OwnerId"] as? String)
             ?? doc.reference.parent.parent?.documentID
             ?? ""
         let isShared = data["IsShared"] as? Bool ?? false
@@ -170,7 +172,9 @@ class DataManager: ObservableObject {
 
     /// Same per-doc parallel fetch as `fetchIngredients`, but skips the CreatedAt sort — the caller
     /// has already sorted the docs in the required order (e.g. by `Order` for recipe subcollections).
-    private func fetchIngredientsPreservingOrder(from sortedDocs: [QueryDocumentSnapshot], refField: String) async -> [IngredientItem] {
+    private func fetchIngredientsPreservingOrder(from sortedDocs: [QueryDocumentSnapshot], refField: String) async
+        -> [IngredientItem]
+    {
         return await withTaskGroup(of: (Int, IngredientItem?).self) { group in
             for (index, doc) in sortedDocs.enumerated() {
                 guard let ref = doc.data()[refField] as? DocumentReference else { continue }
@@ -226,7 +230,7 @@ class DataManager: ObservableObject {
                 "Instructions": recipe.instructions,
                 "OwnerId": currentUserId,
                 "IsShared": false,
-                "CreatedAt": FieldValue.serverTimestamp()
+                "CreatedAt": FieldValue.serverTimestamp(),
             ])
             print("Recipe successfully added.")
         } catch {
@@ -279,7 +283,7 @@ class DataManager: ObservableObject {
             try await recipeRef.updateData([
                 "Name": recipe.title,
                 "Instructions": recipe.instructions,
-                "UpdatedAt": FieldValue.serverTimestamp()
+                "UpdatedAt": FieldValue.serverTimestamp(),
             ])
             print("Recipe \(recipeId) updated.")
         } catch {
@@ -352,7 +356,7 @@ class DataManager: ObservableObject {
             if existing.documents.isEmpty {
                 try await pantryRef.addDocument(data: [
                     "Ingredient": ref,
-                    "CreatedAt": FieldValue.serverTimestamp()
+                    "CreatedAt": FieldValue.serverTimestamp(),
                 ])
             }
         } catch {
@@ -405,7 +409,7 @@ class DataManager: ObservableObject {
             if existing.documents.isEmpty {
                 try await shoppingRef.addDocument(data: [
                     "Ingredient": ref,
-                    "CreatedAt": FieldValue.serverTimestamp()
+                    "CreatedAt": FieldValue.serverTimestamp(),
                 ])
             }
         } catch {
@@ -448,7 +452,8 @@ class DataManager: ObservableObject {
             }
             return results
         }
-        return indexed
+        return
+            indexed
             .sorted { $0.0 < $1.0 }
             .map { (ref: $0.1, quantity: $0.2, unit: $0.3) }
     }
@@ -484,11 +489,14 @@ class DataManager: ObservableObject {
         }
     }
 
-    private func fetchIngredient(from ref: DocumentReference, quantity: Double? = nil, unit: String? = nil) async -> IngredientItem? {
+    private func fetchIngredient(from ref: DocumentReference, quantity: Double? = nil, unit: String? = nil) async
+        -> IngredientItem?
+    {
         do {
             let snap = try await ref.getDocument()
             guard let data = snap.data(),
-                  let name = data["Name"] as? String else {
+                let name = data["Name"] as? String
+            else {
                 print("Failed to fetch or parse ingredient from ref: \(ref.path)")
                 return nil
             }
@@ -514,7 +522,7 @@ class DataManager: ObservableObject {
             let newRef = ingredientsRef.document()
             try await newRef.setData([
                 "Name": trimmed,
-                "NameLower": lower
+                "NameLower": lower,
             ])
             return newRef
         } catch {
@@ -567,10 +575,11 @@ class DataManager: ObservableObject {
         let base = Date()
         for (index, entry) in resolved.enumerated() {
             let doc = shoppingRef.document()
-            batch.setData([
-                "Ingredient": entry.ref,
-                "CreatedAt": Timestamp(date: base.addingTimeInterval(Double(index) * 0.001))
-            ], forDocument: doc)
+            batch.setData(
+                [
+                    "Ingredient": entry.ref,
+                    "CreatedAt": Timestamp(date: base.addingTimeInterval(Double(index) * 0.001)),
+                ], forDocument: doc)
         }
 
         do {
@@ -582,7 +591,9 @@ class DataManager: ObservableObject {
 
     // MARK: - View helpers (instance methods delegate to pure static helpers below)
 
-    func ingredientsWithStatus(for recipe: Recipe) -> [(ingredient: IngredientItem, isInPantry: Bool, isInShoppingList: Bool)] {
+    func ingredientsWithStatus(for recipe: Recipe) -> [(
+        ingredient: IngredientItem, isInPantry: Bool, isInShoppingList: Bool
+    )] {
         Self.ingredientsWithStatus(for: recipe, pantry: pantryIngredients, shopping: shoppingListIngredients)
     }
 
@@ -629,7 +640,9 @@ class DataManager: ObservableObject {
     }
 
     static func recipesSortedByPantryMatch(recipes: [Recipe], pantry: [IngredientItem]) -> [Recipe] {
-        recipes.sorted { matchedIngredientCount(for: $0, pantry: pantry) > matchedIngredientCount(for: $1, pantry: pantry) }
+        recipes.sorted {
+            matchedIngredientCount(for: $0, pantry: pantry) > matchedIngredientCount(for: $1, pantry: pantry)
+        }
     }
 
     static func recipesContaining(_ ingredient: IngredientItem, in recipes: [Recipe]) -> [Recipe] {
@@ -648,7 +661,8 @@ class DataManager: ObservableObject {
     }
 
     func toggleShoppingList(ingredient: IngredientItem) async {
-        if let existing = shoppingListIngredients.first(where: { $0.name.lowercased() == ingredient.name.lowercased() }) {
+        if let existing = shoppingListIngredients.first(where: { $0.name.lowercased() == ingredient.name.lowercased() })
+        {
             await removeIngredientFromShoppingList(ingredientId: existing.id)
         } else {
             await addIngredientToShoppingList(name: ingredient.name)

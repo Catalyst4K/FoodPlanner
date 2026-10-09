@@ -30,8 +30,8 @@ struct DataManagerHelperTests {
     @Test("ingredientsWithStatus tags pantry + shopping list membership case-insensitively")
     func ingredientsWithStatus_tags() {
         let r = recipe("Pancakes", ["Flour", "Sugar", "Milk"])
-        let pantry = [ingredient("flour")]                 // lowercase to test case-insensitive
-        let shopping = [ingredient("MILK")]                // uppercase
+        let pantry = [ingredient("flour")]  // lowercase to test case-insensitive
+        let shopping = [ingredient("MILK")]  // uppercase
 
         let statuses = DataManager.ingredientsWithStatus(for: r, pantry: pantry, shopping: shopping)
 
@@ -72,9 +72,9 @@ struct DataManagerHelperTests {
 
     @Test("recipesSortedByPantryMatch orders by best match count first")
     func recipesSortedByPantryMatch() {
-        let a = recipe("A", ["Flour", "Sugar"])                 // 2 matches
-        let b = recipe("B", ["Flour", "Sugar", "Butter"])       // 2 matches (fewer proportionally, but same count)
-        let c = recipe("C", ["Salt"])                           // 0 matches
+        let a = recipe("A", ["Flour", "Sugar"])  // 2 matches
+        let b = recipe("B", ["Flour", "Sugar", "Butter"])  // 2 matches (fewer proportionally, but same count)
+        let c = recipe("C", ["Salt"])  // 0 matches
         let pantry = [ingredient("Flour"), ingredient("Sugar")]
 
         let sorted = DataManager.recipesSortedByPantryMatch(recipes: [c, b, a], pantry: pantry)

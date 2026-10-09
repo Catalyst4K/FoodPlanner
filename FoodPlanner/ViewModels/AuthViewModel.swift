@@ -2,7 +2,7 @@ import FirebaseAuth
 import SwiftUI
 
 class AuthViewModel: ObservableObject {
-    @Published var user: User? // Holds the current Firebase user
+    @Published var user: User?  // Holds the current Firebase user
     @Published var isLoading = true
 
     init() {

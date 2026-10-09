@@ -125,7 +125,7 @@ struct RecipeListViewModelTests {
             title: "Original",
             ingredients: [
                 IngredientItem(id: "fs-1", name: "Flour"),
-                IngredientItem(id: "fs-2", name: "Sugar", quantity: 2.5, unit: "cups")
+                IngredientItem(id: "fs-2", name: "Sugar", quantity: 2.5, unit: "cups"),
             ],
             instructions: "Mix and bake."
         )
