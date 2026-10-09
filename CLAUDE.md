@@ -56,7 +56,7 @@ Unit tests (`FoodPlannerTests`) use the **Swift Testing** framework (`import Tes
 
 **Testable core is Firebase-free.** The ingredient/pantry matching logic (`ingredientsWithStatus`, `hasMissingIngredients`, `matchedIngredientCount`, `recipesSortedByPantryMatch`, `recipesContaining`) is implemented as `static` pure functions on `DataManager` at the bottom of the file, with instance methods just forwarding to them using current published state. New pieces of business logic that don't need live Firestore access should follow this split so they stay unit-testable without a Firebase project.
 
-**View-local form state lives in view models, not `DataManager`.** `RecipeListViewModel` owns the transient add/edit-recipe form (title/ingredients/instructions draft) and only talks to Firestore indirectly by handing a built `Recipe` to `DataManager`. It has a dedicated `init(editing:)` for pre-filling from an existing `Recipe`.
+**View-local form state lives in view models, not `DataManager`.** `RecipeFormViewModel` owns the transient add/edit-recipe form (title/ingredients/instructions draft) and only talks to Firestore indirectly by handing a built `Recipe` to `DataManager`. It has a dedicated `init(editing:)` for pre-filling from an existing `Recipe`.
 
 **Core Data is present but effectively unused for app data.** `Persistence.swift` / `FoodPlanner.xcdatamodeld` set up an `NSPersistentContainer` and are wired into the environment (`\.managedObjectContext`), but all real app data (recipes, pantry, shopping list) is Firestore-backed via `DataManager`, not Core Data.
 

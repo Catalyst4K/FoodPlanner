@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AddRecipeView: View {
-    @StateObject var viewModel: RecipeListViewModel
+    @StateObject var viewModel: RecipeFormViewModel
     var editingRecipeId: String?
     /// Called synchronously with the built recipe when the user taps Save, BEFORE the Firestore
     /// write starts. Lets the parent (e.g. RecipeDetailView) optimistically update its own state
