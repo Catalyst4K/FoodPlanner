@@ -12,19 +12,21 @@ FoodPlanner is an iOS SwiftUI app (iOS 26.0 deployment target, Swift 5) for mana
 
 Building/testing requires a full Xcode install selected via `xcode-select` (the CLI-tools-only default won't have `xcodebuild`).
 
+Common tasks have a `make` entry point: `make format`, `make lint`, `make build`, `make test`, `make test-ui`, `make check` (lint + build + unit tests; run it at checkpoints). `make help` lists them. The raw `xcodebuild` equivalents:
+
 ```bash
 # Build
-xcodebuild -project FoodPlanner.xcodeproj -scheme FoodPlanner -destination 'platform=iOS Simulator,name=iPhone 16' build
+xcodebuild -project FoodPlanner.xcodeproj -scheme FoodPlanner -destination 'platform=iOS Simulator,name=iPhone 17' build
 
 # Run all unit + UI tests
-xcodebuild -project FoodPlanner.xcodeproj -scheme FoodPlanner -destination 'platform=iOS Simulator,name=iPhone 16' test
+xcodebuild -project FoodPlanner.xcodeproj -scheme FoodPlanner -destination 'platform=iOS Simulator,name=iPhone 17' test
 
 # Run a single test (Swift Testing suite/test, e.g. one @Test in DataManagerHelperTests)
-xcodebuild -project FoodPlanner.xcodeproj -scheme FoodPlanner -destination 'platform=iOS Simulator,name=iPhone 16' \
+xcodebuild -project FoodPlanner.xcodeproj -scheme FoodPlanner -destination 'platform=iOS Simulator,name=iPhone 17' \
   test -only-testing:FoodPlannerTests/DataManagerHelperTests/hasMissingIngredients
 
 # Run only UI tests
-xcodebuild -project FoodPlanner.xcodeproj -scheme FoodPlanner -destination 'platform=iOS Simulator,name=iPhone 16' \
+xcodebuild -project FoodPlanner.xcodeproj -scheme FoodPlanner -destination 'platform=iOS Simulator,name=iPhone 17' \
   test -only-testing:FoodPlannerUITests
 ```
 

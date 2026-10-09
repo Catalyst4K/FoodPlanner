@@ -20,3 +20,21 @@ Carthage/
 
 # Firebase / Secrets
 GoogleService-Info.plist
+
+/build-output/
+
+# Firebase / tooling / signing material (see CLAUDE.md > Security)
+xcuserdata/
+node_modules/
+.firebase/
+firebase-debug*.log
+firestore-debug.log
+ui-debug.log
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+AuthKey_*.p8
+.env
+*-service-account*.json
+*.xcresult
