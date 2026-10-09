@@ -2,21 +2,11 @@ import SwiftUI
 
 struct AddRecipeView: View {
     @StateObject var viewModel: RecipeListViewModel
-    var editingRecipeId: String?
-    /// Called synchronously with the built recipe when the user taps Save, BEFORE the Firestore
-    /// write starts. Lets the parent (e.g. RecipeDetailView) optimistically update its own state
-    /// so the user sees changes reflected instantly rather than after the network round-trip.
-    var onSave: ((Recipe) -> Void)? = nil
     @EnvironmentObject private var dataManager: DataManager
     @Environment(\.presentationMode) var presentationMode
 
     @State private var newIngredientText: String = ""
     @FocusState private var isAddIngredientFocused: Bool
-
-    private var isEditing: Bool { editingRecipeId != nil }
-    private var navigationTitle: String { isEditing ? "Edit Recipe" : "Add Recipe" }
-    private var actionLabel: String { isEditing ? "Save Changes" : "Add Recipe" }
-    private var actionIcon: String { isEditing ? "checkmark.circle.fill" : "plus.circle.fill" }
 
     var body: some View {
         ScrollView {
@@ -29,7 +19,7 @@ struct AddRecipeView: View {
             .padding(.bottom, 100)
         }
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle(navigationTitle)
+        .navigationTitle("Add Recipe")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarItems(leading: Button("Cancel", action: cancelAction))
         .navigationBarBackButtonHidden(true)
@@ -162,8 +152,8 @@ struct AddRecipeView: View {
             Spacer()
             Button(action: submit) {
                 HStack {
-                    Image(systemName: actionIcon)
-                    Text(actionLabel)
+                    Image(systemName: "plus.circle.fill")
+                    Text("Add Recipe")
                         .foregroundColor(viewModel.isFormValid() ? .blue : .gray)
                         .opacity(viewModel.isFormValid() ? 1 : 0.5)
                 }
@@ -192,15 +182,7 @@ struct AddRecipeView: View {
         // Ensure any in-progress input is committed before building the recipe.
         commitIngredient()
         guard let built = viewModel.buildRecipe() else { return }
-        // Fire the callback before the async Firestore write so callers can optimistically
-        // update their UI. It carries only the edit-form fields (title/ingredients/instructions);
-        // callers are responsible for preserving fields the form doesn't own (id, ownerId, isShared).
-        onSave?(built)
-        if let editingRecipeId = editingRecipeId {
-            Task { await dataManager.updateRecipe(recipeId: editingRecipeId, recipe: built) }
-        } else {
-            Task { await dataManager.addRecipe(recipe: built) }
-        }
+        Task { await dataManager.addRecipe(recipe: built) }
         viewModel.resetForm()
         presentationMode.wrappedValue.dismiss()
     }
