@@ -58,8 +58,6 @@ Unit tests (`FoodPlannerTests`) use the **Swift Testing** framework (`import Tes
 
 **View-local form state lives in view models, not `DataManager`.** `RecipeListViewModel` owns the transient add/edit-recipe form (title/ingredients/instructions draft) and only talks to Firestore indirectly by handing a built `Recipe` to `DataManager`. It has a dedicated `init(editing:)` for pre-filling from an existing `Recipe`.
 
-**Core Data is present but effectively unused for app data.** `Persistence.swift` / `FoodPlanner.xcdatamodeld` set up an `NSPersistentContainer` and are wired into the environment (`\.managedObjectContext`), but all real app data (recipes, pantry, shopping list) is Firestore-backed via `DataManager`, not Core Data.
-
 **Orientation locking.** Individual screens can lock device orientation via `AppDelegate.setAllowedOrientations(_:)` (a static UIKit shim bridged into SwiftUI via `@UIApplicationDelegateAdaptor`); this is re-applied whenever `scenePhase` becomes `.active` to avoid a rotate-then-snap-back glitch.
 
 **UI test hooks.** Launching with `-uitest-signed-out` (checked in `FoodPlannerApp.init` under `#if DEBUG`) force-signs-out before the app UI is shown, so UI tests can reliably start at `LoginView`. Accessibility identifiers used by `FoodPlannerUITests` follow a `screen.element` convention (e.g. `login.title`, `login.email`, `login.submit`) — keep this convention when adding new interactive elements that tests should target.
