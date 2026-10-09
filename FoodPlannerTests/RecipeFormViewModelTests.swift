@@ -143,7 +143,7 @@ struct RecipeFormViewModelTests {
 
     @Test("addIngredient treats whitespace and diacritic variants as duplicates")
     func addIngredientSkipsNormalisedDuplicates() {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         vm.addIngredient(name: "Jalapeño")
         vm.addIngredient(name: "  jalapeno ")
         vm.addIngredient(name: "Olive Oil")
