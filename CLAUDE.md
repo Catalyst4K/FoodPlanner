@@ -63,3 +63,62 @@ Unit tests (`FoodPlannerTests`) use the **Swift Testing** framework (`import Tes
 ## Dependencies
 
 Swift packages (Firebase) are embedded in the Xcode project, which Dependabot can't track. Once a month, check the [firebase-ios-sdk releases](https://github.com/firebase/firebase-ios-sdk/releases) and read the release notes before bumping. Don't bump a major version without a full test run.
+
+## Working agreement
+
+These rules apply to everyone who changes this repo, human or agent. "Phase 1", "R.10" and similar refer to tasks in [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). Some things named below (the `FirestoreSchema` enum, `make` targets, rules tests, `ci/GoogleService-Info.plist`) arrive with those tasks; follow the rule from then on.
+
+### Rules
+
+- **Views never touch Firebase.** Only `DataManager` imports `FirebaseFirestore` (and `AuthViewModel` imports `FirebaseAuth`). Views read published state and call `DataManager` methods. A view that imports a Firebase module is a review failure.
+- **Firestore paths and field names live in one place**: a `FirestoreSchema` enum of constants (`collection.recipes`, `field.name`, …) introduced in Phase 1. No string literals for paths or fields anywhere else. A rename then becomes a one-line change plus a migration, not a grep hunt.
+- **Every schema change ships as a unit:** bump `SchemaVersion`, add the migration step, update `firestore.rules` **and** its tests, and update Appendix A of the implementation plan and the schema section of `CLAUDE.md`, all in the same PR. Rules that lag the schema mean either a broken app (writes denied) or an open database.
+- **Anything that sends user data somewhere new is a decision, not an implementation detail.** That covers a new SDK (analytics, crash reporting, ads), a new Firebase product, or a new field others can see (like `OwnerName`). Record it in `docs/decisions.md` first, then update the privacy policy, `PrivacyInfo.xcprivacy`, the App Privacy labels and the README's data table together.
+- **Pure logic is Foundation-only and has tests.** Matching, parsing, formatting, sorting, grouping, date keys, merge rules: `static` functions or small types with no Firebase/SwiftUI import, as `DataManager`'s helpers already do.
+- **Observable state is `@MainActor`.** `DataManager`, `AuthViewModel` and form view models. No `DispatchQueue.main.async` to patch over isolation warnings; fix the isolation.
+- **No `!`, `try!` or `fatalError` in app code** (enforced by swift-format, R.10). Parse Firestore data defensively: a malformed doc is skipped and logged, never a crash.
+- **Optimistic UI must roll back.** Any view that changes local state ahead of a write handles the failure path (Task 4.6 sets the pattern).
+- **Accessibility identifiers** on every interactive element, `screen.element` style. Every image-only button gets an `accessibilityLabel`.
+- **Prefer boring.** Native SwiftUI components over custom overlays; one way of doing a thing. This is a small app maintained by one person.
+- **Commits:** imperative subject line ≤ 72 chars, optional area prefix (`recipes:`, `auth:`, `rules:`, `ci:`, `deps:`, `docs:`). One logical change per commit; formatting-only changes go in their own commit.
+
+### Security
+
+The repo is public and the app is going to the App Store, so mistakes here are both visible and shipped. Treat security as part of finishing a change, not a separate pass.
+
+Before committing or pushing:
+
+- **Never commit secrets or signing material**: `GoogleService-Info.plist` (real one), App Store Connect API keys (`AuthKey_*.p8`), certificates (`.p12`, `.cer`), provisioning profiles, Firebase service-account JSON, `.env` files. The only committed plist is `ci/GoogleService-Info.plist` with fake values. The real Firebase config has already leaked once (finding R2), so this isn't hypothetical.
+- **Check what `git add` staged** (`git status`), and open any file whose name doesn't explain its contents.
+- **No real personal data in fixtures, seeds or screenshots.** Demo accounts use made-up names, `example.com` emails and invented recipes.
+
+When a change touches a trust boundary, actively look for the hole:
+
+- **The security rules are the backend.** There is no server: anything a client can do with the public config is limited only by `firestore.rules` / `storage.rules`. Client-side checks are for UX. Any new collection, field or query needs rules **and** rules tests (allow *and* deny cases) in the same PR. Never use broad `allow read, write: if request.auth != null`.
+- **Shared recipes are untrusted input from other users.** Render them only as plain text: `Text(someString)`, which doesn't parse markdown. Never pass them through `LocalizedStringKey`, `AttributedString(markdown:)` or a web view, because markdown links in a shared recipe would be a phishing vector. Enforce size limits in rules as well as in the form. Future URL fields (recipe source links) must be `https` only, checked before opening.
+- **Images (6.3):** downscale and re-encode on device (which also strips EXIF/location metadata) before upload; Storage rules enforce `image/*` and a size limit.
+- **Auth:** use Firebase Auth's APIs only. Never store passwords or tokens yourself (Firebase keeps them in the Keychain). Account deletion must remove the user's data (3.5). Password-reset messages never reveal whether an account exists.
+- **Logging:** use `os.Logger`, not `print`. User content and emails are logged with `privacy: .private` (or not at all). Release builds must not log document contents.
+- **Dependencies are supply chain.** Few, well-known packages (currently just Firebase). Every addition is a decision-log entry, must have a permissive licence (R.16), and `Package.resolved` is committed and pinned. Review Dependabot/Firebase release notes before bumping, and don't bump a major version without a full checkpoint run.
+- **CI never needs or sees secrets** (R.11). Never add a workflow using `pull_request_target`, and never add a repo secret "just for CI". If a future job genuinely needs one (e.g. TestFlight upload), it runs only on `push` to `main` in a protected environment.
+- **Docs are public too.** `docs/` notes and the decision log must not contain keys, project-internal URLs with tokens, or anyone's personal data.
+
+If you find something, say so plainly and fix or flag it. Don't quietly work around it.
+
+### Testing
+
+Four layers; most changes need only one or two:
+
+| Layer | Where | Runs against | Covers |
+|---|---|---|---|
+| **Unit** | `FoodPlannerTests/` (Swift Testing) | nothing external | pure logic, view models, mapping, parsers |
+| **Integration** | `FoodPlannerTests/Integration/` (Swift Testing, skipped unless `FIREBASE_EMULATOR=1`) | Firestore + Auth emulators | `DataManager` reads/writes, batches, migration |
+| **Rules** | `firebase/test/` (Node, `@firebase/rules-unit-testing`) | Firestore/Storage emulators | every allow and deny path in the rules |
+| **Acceptance** | `FoodPlannerUITests/` (XCUITest, `-use-firebase-emulator`) | the built app + emulators | user-facing flows end to end |
+
+- **Every feature and every fix carries its own tests, in the same branch**, in each layer it touches. A fix without a regression test isn't finished. Pure logic gets tests with realistic values (real ingredient strings, real dates across DST), not placeholders.
+- **The coverage ratchet** (R.13) is a backstop for business logic. It only proves nothing dropped, not that the right things were tested. Never lower it.
+- **Never hit production Firebase from tests.** Everything runs against emulators under a `demo-` project ID.
+- **During iteration run only the relevant tests**; at checkpoints run `make check`. Checkpoints: opening or updating a PR, merging, archiving a TestFlight build.
+- **Cloud sessions can't build the app.** They must say so in the PR (PR template, R.12), and that PR can't merge until CI's `build-test` is green.
+
