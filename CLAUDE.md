@@ -34,6 +34,10 @@ Prefer opening `FoodPlanner.xcodeproj` in Xcode and using Product > Test / ⌘U 
 
 Unit tests (`FoodPlannerTests`) use the **Swift Testing** framework (`import Testing`, `@Suite`/`@Test`/`#expect`), not XCTest. UI tests (`FoodPlannerUITests`) use XCTest/XCUIApplication.
 
+## Emulators and screenshots
+
+`firebase/` holds the local Auth and Firestore emulators (project `demo-foodplanner`), a seed script and its README. Launching a DEBUG build with `-use-firebase-emulator` (handled in `FoodPlannerApp.init`) points Auth and Firestore at them, so no Firebase account is needed. `make screenshots` regenerates `docs/screenshots/` through `ScreenshotTests`, which only runs when `SCREENSHOTS=1` is set. Seed data follows the current Firestore schema; update `firebase/seed.mjs` with every schema change.
+
 ## Architecture
 
 **Auth-gated single data owner.** `FoodPlannerApp` holds `AuthViewModel` (wraps `FirebaseAuth`'s state listener) at the app root. While `authViewModel.user` is nil, `LoginView` is shown; once signed in, `AuthenticatedRoot` is created and constructs a single `DataManager(userId:)` as a `@StateObject`, injected as an `@EnvironmentObject` for the whole authenticated view tree. The `.id(user.uid)` modifier on `AuthenticatedRoot` forces a full rebuild (fresh `DataManager`, fresh Firestore listeners) if the signed-in user changes — there is no manual teardown/re-init path for that.
