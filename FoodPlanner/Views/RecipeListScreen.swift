@@ -2,7 +2,7 @@ import SwiftUI
 
 struct RecipeListScreen: View {
     @EnvironmentObject private var dataManager: DataManager
-    @Binding var selectedSortOption: String
+    @AppStorage("recipeSort") private var sort: RecipeSort = .pantryMatch
     @State private var showingShared: Bool = false
 
     var body: some View {
@@ -17,6 +17,21 @@ struct RecipeListScreen: View {
             .padding(.horizontal)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if !showingShared {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Menu {
+                        Picker("Sort", selection: $sort) {
+                            ForEach(RecipeSort.allCases) { Text($0.title).tag($0) }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                    }
+                    .accessibilityLabel("Sort")
+                    .accessibilityIdentifier("recipes.sort")
+                }
+            }
+        }
         .navigationDestination(for: RecipeRoute.self) { route in
             switch route {
             case .detail(let id):
@@ -139,15 +154,8 @@ struct RecipeListScreen: View {
 
     private var visibleRecipes: [Recipe] {
         if showingShared {
-            return dataManager.sharedRecipes.sorted { $0.title < $1.title }
+            return RecipeSort.sorted(dataManager.sharedRecipes, by: .name, pantry: dataManager.pantryIngredients)
         }
-        switch selectedSortOption {
-        case "Sort by Pantry Match":
-            return dataManager.recipesSortedByPantryMatch()
-        case "Sort by Recipe Name":
-            return dataManager.userRecipes.sorted { $0.title < $1.title }
-        default:
-            return dataManager.userRecipes
-        }
+        return RecipeSort.sorted(dataManager.userRecipes, by: sort, pantry: dataManager.pantryIngredients)
     }
 }

@@ -69,6 +69,35 @@ final class SignedInFlowTests: XCTestCase {
     }
 
     @MainActor
+    func test_sortMenuReordersRecipes() throws {
+        let app = launch()
+        _ = signUp(app)
+        addRecipe(app, title: "Zebra Cake", ingredients: ["Flour"], instructions: "Bake.")
+        XCTAssertTrue(app.staticTexts["Zebra Cake"].waitForExistence(timeout: 15))
+        addRecipe(app, title: "Apple Pie", ingredients: ["Apples"], instructions: "Bake.")
+        XCTAssertTrue(app.staticTexts["Apple Pie"].waitForExistence(timeout: 15))
+
+        func chooseSort(_ title: String) {
+            app.buttons["recipes.sort"].tap()
+            app.buttons[title].tap()
+        }
+        func isAbove(_ first: String, _ second: String) -> Bool {
+            app.staticTexts[first].frame.minY < app.staticTexts[second].frame.minY
+        }
+
+        chooseSort("Name")
+        XCTAssertTrue(isAbove("Apple Pie", "Zebra Cake"), "Name sort is A to Z")
+
+        // Put Zebra Cake's only ingredient in the pantry: it becomes cookable now, so it should lead.
+        app.tabBars.buttons["Pantry"].tap()
+        type("Flour\n", into: app.textFields["pantry.addField"], in: app)
+        XCTAssertTrue(app.buttons["pantry.delete.Flour"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["Recipes"].tap()
+        chooseSort("Pantry match")
+        XCTAssertTrue(isAbove("Zebra Cake", "Apple Pie"), "Pantry match puts the cookable recipe first")
+    }
+
+    @MainActor
     func test_editAndDeleteRecipe() throws {
         let app = launch()
         _ = signUp(app)

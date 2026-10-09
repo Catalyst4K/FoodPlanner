@@ -372,10 +372,6 @@ class DataManager: ObservableObject {
         Self.matchedIngredientCount(for: recipe, pantry: pantryIngredients)
     }
 
-    func recipesSortedByPantryMatch() -> [Recipe] {
-        Self.recipesSortedByPantryMatch(recipes: userRecipes, pantry: pantryIngredients)
-    }
-
     /// Which of the current user's recipes contain a given ingredient (case-insensitive by name).
     func recipesContaining(_ ingredient: IngredientItem) -> [Recipe] {
         Self.recipesContaining(ingredient, in: userRecipes)
@@ -404,12 +400,6 @@ class DataManager: ObservableObject {
     nonisolated static func matchedIngredientCount(for recipe: Recipe, pantry: [IngredientItem]) -> Int {
         let pantryNames = Set(pantry.map { IngredientKey.normalized($0.name) })
         return recipe.ingredients.filter { pantryNames.contains(IngredientKey.normalized($0.name)) }.count
-    }
-
-    nonisolated static func recipesSortedByPantryMatch(recipes: [Recipe], pantry: [IngredientItem]) -> [Recipe] {
-        recipes.sorted {
-            matchedIngredientCount(for: $0, pantry: pantry) > matchedIngredientCount(for: $1, pantry: pantry)
-        }
     }
 
     nonisolated static func recipesContaining(_ ingredient: IngredientItem, in recipes: [Recipe]) -> [Recipe] {
