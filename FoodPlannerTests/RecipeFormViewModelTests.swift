@@ -1,5 +1,5 @@
 //
-//  RecipeListViewModelTests.swift
+//  RecipeFormViewModelTests.swift
 //  FoodPlannerTests
 //
 
@@ -7,12 +7,12 @@ import Testing
 import Foundation
 @testable import FoodPlanner
 
-@Suite("RecipeListViewModel")
-struct RecipeListViewModelTests {
+@Suite("RecipeFormViewModel")
+struct RecipeFormViewModelTests {
 
     @Test("Fresh view model has no ingredients and is invalid")
     func initialState() {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         #expect(vm.title == "")
         #expect(vm.instructions == "")
         #expect(vm.ingredients.isEmpty)
@@ -22,7 +22,7 @@ struct RecipeListViewModelTests {
 
     @Test("addIngredient appends trimmed, non-empty values")
     func addIngredientAppends() {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         vm.addIngredient(name: "  Milk  ")
         #expect(vm.ingredients.count == 1)
         #expect(vm.ingredients.first?.name == "Milk")
@@ -30,7 +30,7 @@ struct RecipeListViewModelTests {
 
     @Test("addIngredient ignores empty or whitespace-only names")
     func addIngredientIgnoresEmpty() {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         vm.addIngredient(name: "")
         vm.addIngredient(name: "   ")
         vm.addIngredient(name: "\n\t")
@@ -39,7 +39,7 @@ struct RecipeListViewModelTests {
 
     @Test("addIngredient skips case-insensitive duplicates")
     func addIngredientSkipsDuplicates() {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         vm.addIngredient(name: "Milk")
         vm.addIngredient(name: "milk")
         vm.addIngredient(name: "MILK")
@@ -49,7 +49,7 @@ struct RecipeListViewModelTests {
 
     @Test("removeIngredient removes by id")
     func removeIngredient() {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         vm.addIngredient(name: "Milk")
         vm.addIngredient(name: "Eggs")
         let milkId = vm.ingredients[0].id
@@ -60,7 +60,7 @@ struct RecipeListViewModelTests {
 
     @Test("removeIngredient with unknown id is a no-op")
     func removeIngredientUnknown() {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         vm.addIngredient(name: "Milk")
         vm.removeIngredient(id: "does-not-exist")
         #expect(vm.ingredients.count == 1)
@@ -68,7 +68,7 @@ struct RecipeListViewModelTests {
 
     @Test("isFormValid requires both a title and at least one ingredient")
     func isFormValid() {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         #expect(vm.isFormValid() == false)
 
         vm.title = "Pancakes"
@@ -83,7 +83,7 @@ struct RecipeListViewModelTests {
 
     @Test("buildRecipe returns nil when form is invalid")
     func buildRecipeInvalid() {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         vm.title = "Only Title"
         #expect(vm.buildRecipe() == nil)
 
@@ -94,7 +94,7 @@ struct RecipeListViewModelTests {
 
     @Test("buildRecipe trims whitespace on title and instructions")
     func buildRecipeTrims() throws {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         vm.title = "  Pancakes  "
         vm.instructions = "\nMix well.\n"
         vm.addIngredient(name: "Flour")
@@ -107,7 +107,7 @@ struct RecipeListViewModelTests {
 
     @Test("resetForm clears title, instructions, and ingredients")
     func resetForm() {
-        let vm = RecipeListViewModel()
+        let vm = RecipeFormViewModel()
         vm.title = "Pancakes"
         vm.instructions = "Mix"
         vm.addIngredient(name: "Flour")
@@ -130,7 +130,7 @@ struct RecipeListViewModelTests {
             instructions: "Mix and bake."
         )
 
-        let vm = RecipeListViewModel(editing: original)
+        let vm = RecipeFormViewModel(editing: original)
         #expect(vm.title == "Original")
         #expect(vm.instructions == "Mix and bake.")
         #expect(vm.ingredients.count == 2)

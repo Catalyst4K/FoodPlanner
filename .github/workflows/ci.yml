@@ -13,6 +13,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: swift-format lint
+        run: make lint
+
   # Needs no secrets: the app is built against ci/GoogleService-Info.plist,
   # which contains only fake values for the emulator project.
   build-test:
@@ -52,9 +60,42 @@ jobs:
             echo "::error::Compiler warnings in app code"; exit 1
           fi
 
+      - name: Coverage ratchet
+        run: scripts/check-coverage.sh build-output/unit.xcresult
+
+      - name: Third-party licences are up to date
+        run: |
+          scripts/generate-third-party-licenses.sh
+          git diff --exit-code -- THIRD-PARTY-LICENSES.md FoodPlanner/Resources/Acknowledgements.json \
+            || { echo "::error::Run 'make licenses' and commit the result"; exit 1; }
+
       - name: Upload test results on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: unit-xcresult
           path: build-output/unit.xcresult
+
+  # Firestore security rules tests against the emulator (project demo-foodplanner, no credentials).
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: firebase
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: firebase/package-lock.json
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+      - run: npm run test:emulated

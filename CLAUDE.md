@@ -36,7 +36,7 @@ Unit tests (`FoodPlannerTests`) use the **Swift Testing** framework (`import Tes
 
 ## Emulators and screenshots
 
-`firebase/` holds the local Auth and Firestore emulators (project `demo-foodplanner`), a seed script and its README. Launching a DEBUG build with `-use-firebase-emulator` (handled in `FoodPlannerApp.init`) points Auth and Firestore at them, so no Firebase account is needed. `make screenshots` regenerates `docs/screenshots/` through `ScreenshotTests`, which only runs when `SCREENSHOTS=1` is set. Seed data follows the current Firestore schema; update `firebase/seed.mjs` with every schema change.
+`firebase/` holds the local Auth and Firestore emulators (project `demo-foodplanner`), a seed script and its README. Launching a DEBUG build with `-use-firebase-emulator` (handled in `FoodPlannerApp.init`) points Auth and Firestore at them, so no Firebase account is needed. `make screenshots` regenerates `docs/screenshots/` through `ScreenshotTests`, which only runs when `SCREENSHOTS=1` is set. Seed data follows the current Firestore schema; update `firebase/seed.mjs` with every schema change. Security rules live in `firebase/firestore.rules` with allow/deny tests in `firebase/test/` (`cd firebase && npm run test:emulated`); the rules are deployed by hand (Firebase console or `firebase deploy --only firestore:rules`), so after merging a rules change, publish it.
 
 ## Architecture
 
@@ -56,9 +56,7 @@ Unit tests (`FoodPlannerTests`) use the **Swift Testing** framework (`import Tes
 
 **Testable core is Firebase-free.** The ingredient/pantry matching logic (`ingredientsWithStatus`, `hasMissingIngredients`, `matchedIngredientCount`, `recipesSortedByPantryMatch`, `recipesContaining`) is implemented as `static` pure functions on `DataManager` at the bottom of the file, with instance methods just forwarding to them using current published state. New pieces of business logic that don't need live Firestore access should follow this split so they stay unit-testable without a Firebase project.
 
-**View-local form state lives in view models, not `DataManager`.** `RecipeListViewModel` owns the transient add/edit-recipe form (title/ingredients/instructions draft) and only talks to Firestore indirectly by handing a built `Recipe` to `DataManager`. It has a dedicated `init(editing:)` for pre-filling from an existing `Recipe`.
-
-**Core Data is present but effectively unused for app data.** `Persistence.swift` / `FoodPlanner.xcdatamodeld` set up an `NSPersistentContainer` and are wired into the environment (`\.managedObjectContext`), but all real app data (recipes, pantry, shopping list) is Firestore-backed via `DataManager`, not Core Data.
+**View-local form state lives in view models, not `DataManager`.** `RecipeFormViewModel` owns the transient add/edit-recipe form (title/ingredients/instructions draft) and only talks to Firestore indirectly by handing a built `Recipe` to `DataManager`. It has a dedicated `init(editing:)` for pre-filling from an existing `Recipe`.
 
 **Orientation locking.** Individual screens can lock device orientation via `AppDelegate.setAllowedOrientations(_:)` (a static UIKit shim bridged into SwiftUI via `@UIApplicationDelegateAdaptor`); this is re-applied whenever `scenePhase` becomes `.active` to avoid a rotate-then-snap-back glitch.
 

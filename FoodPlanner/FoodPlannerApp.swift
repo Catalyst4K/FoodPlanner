@@ -84,7 +84,6 @@ extension AppDelegate {
 
 @main
 struct FoodPlannerApp: App {
-    let persistenceController = PersistenceController.shared
     @StateObject private var authViewModel = AuthViewModel()
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.scenePhase) private var scenePhase
@@ -113,7 +112,6 @@ struct FoodPlannerApp: App {
     var rootView: some View {
         if let user = authViewModel.user {
             AuthenticatedRoot(authViewModel: authViewModel, userId: user.uid)
-                .environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .id(user.uid)  // Rebuild the DataManager if the signed-in user changes
         } else {
             LoginView(authViewModel: authViewModel)

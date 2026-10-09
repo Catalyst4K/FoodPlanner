@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AddRecipeView: View {
-    @StateObject var viewModel: RecipeListViewModel
+    @StateObject var viewModel: RecipeFormViewModel
     @EnvironmentObject private var dataManager: DataManager
     @Environment(\.presentationMode) var presentationMode
 
