@@ -1,19 +1,12 @@
 import Foundation
 
+/// An ingredient in a recipe, the pantry or the shopping list.
+///
+/// `id` is stable and derived from the name: for pantry and shopping-list documents it is the
+/// document ID, and for recipe ingredients it is `IngredientKey.documentID(for: name)`.
 struct IngredientItem: Identifiable {
     var id: String
     var name: String
     var quantity: Double?
     var unit: String?
-
-    static func from(dictionary: [String: Any], id: String) -> IngredientItem? {
-        guard let name = dictionary["Name"] as? String else {
-            return nil
-        }
-
-        let quantity = dictionary["Quantity"] as? Double
-        let unit = dictionary["Unit"] as? String
-
-        return IngredientItem(id: id, name: name, quantity: quantity, unit: unit)
-    }
 }
