@@ -100,4 +100,32 @@ struct DataManagerHelperTests {
         let byOnion = DataManager.recipesContaining(ingredient("Onion"), in: [pancakes, cake, salad])
         #expect(byOnion.isEmpty)
     }
+
+    // MARK: - Name normalisation (IngredientKey)
+
+    @Test("matching ignores extra whitespace and case: \"Olive  Oil \" matches \"olive oil\"")
+    func matching_ignoresWhitespaceAndCase() {
+        let r = recipe("Dressing", ["olive oil"])
+        let pantry = [ingredient("Olive  Oil ")]
+        #expect(DataManager.hasMissingIngredients(for: r, pantry: pantry) == false)
+        #expect(DataManager.matchedIngredientCount(for: r, pantry: pantry) == 1)
+    }
+
+    @Test("matching ignores diacritics: \"Jalapeño\" matches \"jalapeno\"")
+    func matching_ignoresDiacritics() {
+        let r = recipe("Salsa", ["jalapeno"])
+        let pantry = [ingredient("Jalapeño")]
+        #expect(DataManager.matchedIngredientCount(for: r, pantry: pantry) == 1)
+
+        let statuses = DataManager.ingredientsWithStatus(for: r, pantry: pantry, shopping: [])
+        #expect(statuses[0].isInPantry == true)
+    }
+
+    @Test("recipesContaining uses the normalised name")
+    func recipesContaining_normalised() {
+        let salsa = recipe("Salsa", ["Jalapeño"])
+        let toast = recipe("Toast", ["Bread"])
+        let result = DataManager.recipesContaining(ingredient("jalapeno "), in: [salsa, toast])
+        #expect(result.map(\.title) == ["Salsa"])
+    }
 }

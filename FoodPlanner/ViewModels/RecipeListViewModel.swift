@@ -29,8 +29,8 @@ class RecipeListViewModel: ObservableObject {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         // Skip duplicates (case-insensitive) so the user can't add "Milk" twice.
-        let key = trimmed.lowercased()
-        guard !ingredients.contains(where: { $0.name.lowercased() == key }) else { return }
+        let key = IngredientKey.normalized(trimmed)
+        guard !ingredients.contains(where: { IngredientKey.normalized($0.name) == key }) else { return }
         ingredients.append(IngredientItem(id: UUID().uuidString, name: trimmed))
     }
 
