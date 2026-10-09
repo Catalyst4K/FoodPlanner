@@ -20,6 +20,7 @@ Carthage/
 
 # Firebase / Secrets
 GoogleService-Info.plist
+!/ci/GoogleService-Info.plist
 
 /build-output/
 
