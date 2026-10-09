@@ -1,0 +1,16 @@
+Copyright © 2025–2026 Callum Jones. All rights reserved.
+
+FoodPlanner — an iOS app for managing recipes, a pantry and a shopping list.
+
+See LICENSE for the terms that apply to this repository.
+
+This file and LICENSE are the authoritative statement of copyright and
+licensing. Per-file copyright headers are deliberately not used (see
+docs/decisions.md).
+
+Third-party components are licensed under their own terms; see
+THIRD-PARTY-LICENSES.md.
+
+Apple, iPhone and iOS are trademarks of Apple Inc. Firebase is a trademark of
+Google LLC. FoodPlanner is an independent project and is not affiliated with or
+endorsed by either.
