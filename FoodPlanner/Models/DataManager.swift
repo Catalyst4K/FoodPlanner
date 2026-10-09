@@ -549,14 +549,14 @@ class DataManager: ObservableObject {
     }
 
     func addMissingIngredientsToShoppingList(from recipe: Recipe) async {
-        let pantryNames = Set(pantryIngredients.map { $0.name.lowercased() })
-        let shoppingNames = Set(shoppingListIngredients.map { $0.name.lowercased() })
+        let pantryNames = Set(pantryIngredients.map { IngredientKey.normalized($0.name) })
+        let shoppingNames = Set(shoppingListIngredients.map { IngredientKey.normalized($0.name) })
 
         // Missing = not already in the pantry and not already on the list, kept in recipe order.
         // We filter here, so the per-item "already on the list?" query in addIngredientToShoppingList
         // isn't needed on this path — one fewer round-trip per ingredient.
         let missing = recipe.ingredients.filter { ingredient in
-            let key = ingredient.name.lowercased()
+            let key = IngredientKey.normalized(ingredient.name)
             return !pantryNames.contains(key) && !shoppingNames.contains(key)
         }
         guard !missing.isEmpty else { return }
@@ -621,22 +621,22 @@ class DataManager: ObservableObject {
         pantry: [IngredientItem],
         shopping: [IngredientItem]
     ) -> [(ingredient: IngredientItem, isInPantry: Bool, isInShoppingList: Bool)] {
-        let pantryNames = Set(pantry.map { $0.name.lowercased() })
-        let shoppingNames = Set(shopping.map { $0.name.lowercased() })
+        let pantryNames = Set(pantry.map { IngredientKey.normalized($0.name) })
+        let shoppingNames = Set(shopping.map { IngredientKey.normalized($0.name) })
         return recipe.ingredients.map { ingredient in
-            let key = ingredient.name.lowercased()
+            let key = IngredientKey.normalized(ingredient.name)
             return (ingredient, pantryNames.contains(key), shoppingNames.contains(key))
         }
     }
 
     static func hasMissingIngredients(for recipe: Recipe, pantry: [IngredientItem]) -> Bool {
-        let pantryNames = Set(pantry.map { $0.name.lowercased() })
-        return recipe.ingredients.contains { !pantryNames.contains($0.name.lowercased()) }
+        let pantryNames = Set(pantry.map { IngredientKey.normalized($0.name) })
+        return recipe.ingredients.contains { !pantryNames.contains(IngredientKey.normalized($0.name)) }
     }
 
     static func matchedIngredientCount(for recipe: Recipe, pantry: [IngredientItem]) -> Int {
-        let pantryNames = Set(pantry.map { $0.name.lowercased() })
-        return recipe.ingredients.filter { pantryNames.contains($0.name.lowercased()) }.count
+        let pantryNames = Set(pantry.map { IngredientKey.normalized($0.name) })
+        return recipe.ingredients.filter { pantryNames.contains(IngredientKey.normalized($0.name)) }.count
     }
 
     static func recipesSortedByPantryMatch(recipes: [Recipe], pantry: [IngredientItem]) -> [Recipe] {
@@ -646,14 +646,16 @@ class DataManager: ObservableObject {
     }
 
     static func recipesContaining(_ ingredient: IngredientItem, in recipes: [Recipe]) -> [Recipe] {
-        let key = ingredient.name.lowercased()
+        let key = IngredientKey.normalized(ingredient.name)
         return recipes.filter { recipe in
-            recipe.ingredients.contains { $0.name.lowercased() == key }
+            recipe.ingredients.contains { IngredientKey.normalized($0.name) == key }
         }
     }
 
     func togglePantry(ingredient: IngredientItem) async {
-        if let existing = pantryIngredients.first(where: { $0.name.lowercased() == ingredient.name.lowercased() }) {
+        if let existing = pantryIngredients.first(where: {
+            IngredientKey.normalized($0.name) == IngredientKey.normalized(ingredient.name)
+        }) {
             await removeIngredientFromPantry(ingredientId: existing.id)
         } else {
             await addIngredientToPantry(name: ingredient.name)
@@ -661,8 +663,9 @@ class DataManager: ObservableObject {
     }
 
     func toggleShoppingList(ingredient: IngredientItem) async {
-        if let existing = shoppingListIngredients.first(where: { $0.name.lowercased() == ingredient.name.lowercased() })
-        {
+        if let existing = shoppingListIngredients.first(where: {
+            IngredientKey.normalized($0.name) == IngredientKey.normalized(ingredient.name)
+        }) {
             await removeIngredientFromShoppingList(ingredientId: existing.id)
         } else {
             await addIngredientToShoppingList(name: ingredient.name)

@@ -140,4 +140,14 @@ struct RecipeFormViewModelTests {
         // IDs should be freshly generated, not the Firestore ingredient IDs
         #expect(vm.ingredients.allSatisfy { $0.id != "fs-1" && $0.id != "fs-2" })
     }
+
+    @Test("addIngredient treats whitespace and diacritic variants as duplicates")
+    func addIngredientSkipsNormalisedDuplicates() {
+        let vm = RecipeFormViewModel()
+        vm.addIngredient(name: "Jalapeño")
+        vm.addIngredient(name: "  jalapeno ")
+        vm.addIngredient(name: "Olive Oil")
+        vm.addIngredient(name: "olive   oil")
+        #expect(vm.ingredients.map(\.name) == ["Jalapeño", "Olive Oil"])
+    }
 }

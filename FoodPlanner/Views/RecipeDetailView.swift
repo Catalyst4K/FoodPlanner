@@ -71,7 +71,7 @@ struct RecipeDetailView: View {
     private var ingredientRows: [IngredientRow] {
         dataManager.ingredientsWithStatus(for: recipe).map { status in
             IngredientRow(
-                id: status.ingredient.name.lowercased(),
+                id: IngredientKey.documentID(for: status.ingredient.name),
                 ingredient: status.ingredient,
                 isInPantry: status.isInPantry,
                 isInShoppingList: status.isInShoppingList
