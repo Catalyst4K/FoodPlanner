@@ -12,7 +12,7 @@ FoodPlanner is an iOS SwiftUI app (iOS 26.0 deployment target, Swift 5) for mana
 
 Building/testing requires a full Xcode install selected via `xcode-select` (the CLI-tools-only default won't have `xcodebuild`).
 
-Common tasks have a `make` entry point: `make format`, `make lint`, `make build`, `make test`, `make test-ui`, `make check` (lint + build + unit tests; run it at checkpoints). `make help` lists them. The raw `xcodebuild` equivalents:
+Common tasks have a `make` entry point: `make format`, `make lint`, `make build`, `make test`, `make test-ui`, `make coverage`, `make check` (lint + build + unit tests + coverage ratchet; run it at checkpoints). `make help` lists them. The raw `xcodebuild` equivalents:
 
 ```bash
 # Build
