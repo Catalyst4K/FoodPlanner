@@ -52,4 +52,24 @@ class AuthViewModel: ObservableObject {
             completion(true)
         }
     }
+
+    /// Maps a Firebase Auth error to a user-facing failure. Wrong password and unknown user both surface as
+    /// `.invalidCredentials`, so the app never reveals whether an account exists.
+    nonisolated static func failure(from error: Error) -> AuthFailure {
+        let nsError = error as NSError
+        guard nsError.domain == AuthErrorDomain, let code = AuthErrorCode(rawValue: nsError.code) else {
+            return .unknown
+        }
+        switch code {
+        case .invalidCredential, .wrongPassword, .userNotFound: return .invalidCredentials
+        case .invalidEmail: return .invalidEmail
+        case .emailAlreadyInUse: return .emailInUse
+        case .weakPassword: return .weakPassword
+        case .networkError: return .network
+        case .tooManyRequests: return .tooManyRequests
+        case .requiresRecentLogin: return .requiresRecentLogin
+        case .userDisabled: return .userDisabled
+        default: return .unknown
+        }
+    }
 }
