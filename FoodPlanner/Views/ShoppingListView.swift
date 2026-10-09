@@ -199,7 +199,7 @@ struct ShoppingListView: View {
         let trimmed = newItemText.trimmingCharacters(in: .whitespaces)
         newItemText = ""
         guard !trimmed.isEmpty else { return }
-        Task { await dataManager.addIngredientToShoppingList(name: trimmed) }
+        Task { await dataManager.addToShoppingList(name: trimmed) }
     }
 
     private func check(_ ingredient: IngredientItem) {
@@ -214,6 +214,6 @@ struct ShoppingListView: View {
         withAnimation(.easeOut(duration: 0.35)) {
             _ = hiddenIds.insert(ingredient.id)
         }
-        Task { await dataManager.removeIngredientFromShoppingList(ingredientId: ingredient.id) }
+        Task { await dataManager.removeFromShoppingList(id: ingredient.id) }
     }
 }

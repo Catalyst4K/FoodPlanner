@@ -1,14 +1,13 @@
 // Seeds the local Firebase emulators with a demo account and made-up data, using
 // the emulators' REST APIs (no Firebase account or admin SDK needed).
 // Emulator-only: the project ID `demo-foodplanner` can never reach production.
-// Recipes follow schema v2 (inline ingredients); pantry and shopping still use v1 references until plan task 1.5.
+// Follows schema v2 (docs/IMPLEMENTATION_PLAN.md, Appendix A): inline recipe ingredients, keyed pantry and shopping docs.
 //
 //   make emulators-exec CMD="node seed.mjs"   (or run while `npm run emulators` is up)
 
 const PROJECT = "demo-foodplanner";
 const AUTH = "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1";
 const FS = `http://127.0.0.1:8080/v1/projects/${PROJECT}/databases/(default)/documents`;
-const DOC_PREFIX = `projects/${PROJECT}/databases/(default)/documents`;
 
 export const DEMO_EMAIL = "demo@example.com";
 export const DEMO_PASSWORD = "demo-password-123";
@@ -82,7 +81,6 @@ const shopping = ["tomatoes", "basil", "milk"];
 
 const str = (stringValue) => ({ stringValue });
 const ts = (timestampValue) => ({ timestampValue });
-const ref = (key) => ({ referenceValue: `${DOC_PREFIX}/Ingredients/ing-${key}` });
 
 async function json(url, init) {
   const res = await fetch(url, init);
@@ -113,10 +111,6 @@ async function put(path, fields) {
 const uid = await ensureUser();
 const user = `Users/${uid}`;
 
-for (const [key, name] of Object.entries(ingredients)) {
-  await put(`Ingredients/ing-${key}`, { Name: str(name), NameLower: str(name.toLowerCase()) });
-}
-
 for (const recipe of recipes) {
   await put(`${user}/Recipes/${recipe.id}`, {
     Name: str(recipe.name),
@@ -137,11 +131,13 @@ for (const recipe of recipes) {
   });
 }
 
+// Document ID = the normalised ingredient key (lower case here; see FoodPlanner/Models/IngredientKey.swift).
+const keyed = (key) => ingredients[key].toLowerCase();
 for (const [index, key] of pantry.entries()) {
-  await put(`${user}/Pantry/pantry-${key}`, { Ingredient: ref(key), CreatedAt: ts(`2026-09-10T10:0${index}:00Z`) });
+  await put(`${user}/Pantry/${keyed(key)}`, { Name: str(ingredients[key]), CreatedAt: ts(`2026-09-10T10:0${index}:00Z`) });
 }
 for (const [index, key] of shopping.entries()) {
-  await put(`${user}/ShoppingList/shop-${key}`, { Ingredient: ref(key), CreatedAt: ts(`2026-09-11T10:0${index}:00Z`) });
+  await put(`${user}/ShoppingList/${keyed(key)}`, { Name: str(ingredients[key]), CreatedAt: ts(`2026-09-11T10:0${index}:00Z`) });
 }
 
 console.log(`Seeded demo account ${DEMO_EMAIL} (${uid}): ${recipes.length} recipes, ${pantry.length} pantry, ${shopping.length} shopping items`);

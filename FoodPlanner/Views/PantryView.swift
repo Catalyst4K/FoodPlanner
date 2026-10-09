@@ -106,7 +106,7 @@ struct PantryView: View {
         let trimmed = newItemText.trimmingCharacters(in: .whitespaces)
         newItemText = ""
         guard !trimmed.isEmpty else { return }
-        Task { await dataManager.addIngredientToPantry(name: trimmed) }
+        Task { await dataManager.addToPantry(name: trimmed) }
     }
 
     private func remove(_ ingredient: IngredientItem) {
@@ -114,6 +114,6 @@ struct PantryView: View {
         withAnimation(.easeOut(duration: 0.35)) {
             _ = hiddenIds.insert(ingredient.id)
         }
-        Task { await dataManager.removeIngredientFromPantry(ingredientId: ingredient.id) }
+        Task { await dataManager.removeFromPantry(id: ingredient.id) }
     }
 }

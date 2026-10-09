@@ -29,7 +29,6 @@ const BOB = "bob";
 
 const as = (uid) => env.authenticatedContext(uid).firestore();
 const anon = () => env.unauthenticatedContext().firestore();
-const ing = (db, id = "ing-flour") => doc(db, `Ingredients/${id}`);
 
 before(async () => {
   env = await initializeTestEnvironment({
@@ -44,50 +43,38 @@ beforeEach(async () => {
   // Seed with rules disabled: alice has a private and a shared recipe, each with one ingredient.
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(ing(db), { Name: "Flour", NameLower: "flour" });
     for (const [id, shared] of [["private", false], ["shared", true]]) {
       await setDoc(doc(db, `Users/${ALICE}/Recipes/${id}`), {
         Name: id, Instructions: "Mix.", OwnerId: ALICE, IsShared: shared,
         Ingredients: [{ Name: "Flour", Quantity: 100, Unit: "g" }],
       });
     }
-    await setDoc(doc(db, `Users/${ALICE}/Pantry/p1`), { Ingredient: ing(db) });
-    await setDoc(doc(db, `Users/${ALICE}/ShoppingList/s1`), { Ingredient: ing(db) });
+    await setDoc(doc(db, `Users/${ALICE}/Pantry/flour`), { Name: "Flour", CreatedAt: new Date() });
+    await setDoc(doc(db, `Users/${ALICE}/ShoppingList/milk`), { Name: "Milk", CreatedAt: new Date() });
   });
 });
 
 describe("unauthenticated users", () => {
   it("cannot read or write anything", async () => {
     const db = anon();
-    await assertFails(getDoc(ing(db)));
     await assertFails(getDoc(doc(db, `Users/${ALICE}/Recipes/shared`)));
     await assertFails(getDoc(doc(db, `Users/${ALICE}/Recipes/shared/Ingredients/i0`)));
-    await assertFails(getDoc(doc(db, `Users/${ALICE}/Pantry/p1`)));
-    await assertFails(setDoc(doc(db, `Users/${ALICE}/Pantry/p2`), { Ingredient: ing(db) }));
+    await assertFails(getDoc(doc(db, `Users/${ALICE}/Pantry/flour`)));
+    await assertFails(setDoc(doc(db, `Users/${ALICE}/Pantry/rice`), { Name: "Rice" }));
     await assertFails(getDocs(query(collectionGroup(db, "Recipes"), where("IsShared", "==", true))));
   });
 });
 
-describe("global Ingredients", () => {
-  it("signed-in users can read and create a valid entry", async () => {
-    const db = as(BOB);
-    await assertSucceeds(getDoc(ing(db)));
-    await assertSucceeds(setDoc(ing(db, "ing-rice"), { Name: "Rice", NameLower: "rice" }));
-  });
-  it("accepts accented names (the app lowercases with Swift, not with the rules language)", async () => {
-    await assertSucceeds(setDoc(ing(as(BOB), "ing-eclair"), { Name: "Éclair", NameLower: "éclair" }));
-  });
-  it("rejects extra fields, empty and oversized names", async () => {
-    const db = as(BOB);
-    await assertFails(setDoc(ing(db, "a"), { Name: "Rice", NameLower: "rice", Evil: "x" }));
-    await assertFails(setDoc(ing(db, "c"), { Name: "", NameLower: "" }));
-    const long = "x".repeat(81);
-    await assertFails(setDoc(ing(db, "d"), { Name: long, NameLower: long }));
-  });
-  it("entries are immutable", async () => {
-    const db = as(BOB);
-    await assertFails(updateDoc(ing(db), { Name: "Hacked" }));
-    await assertFails(deleteDoc(ing(db)));
+describe("retired global Ingredients collection", () => {
+  it("is closed to everyone", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), "Ingredients/old"), { Name: "Flour", NameLower: "flour" });
+    });
+    for (const db of [as(ALICE), as(BOB), anon()]) {
+      await assertFails(getDoc(doc(db, "Ingredients/old")));
+      await assertFails(setDoc(doc(db, "Ingredients/new"), { Name: "Rice", NameLower: "rice" }));
+      await assertFails(getDocs(collection(db, "Ingredients")));
+    }
   });
 });
 
@@ -205,25 +192,36 @@ describe("recipes (schema v2)", () => {
   });
 });
 
-describe("pantry and shopping list", () => {
+describe("pantry and shopping list (keyed documents)", () => {
   for (const name of ["Pantry", "ShoppingList"]) {
     const path = (id) => `Users/${ALICE}/${name}/${id}`;
-    const existing = name === "Pantry" ? "p1" : "s1";
+    const existing = name === "Pantry" ? "flour" : "milk";
     it(`${name}: owner has full access`, async () => {
       const db = as(ALICE);
       await assertSucceeds(getDoc(doc(db, path(existing))));
-      await assertSucceeds(setDoc(doc(db, path("new")), { Ingredient: ing(db) }));
-      await assertSucceeds(deleteDoc(doc(db, path("new"))));
+      await assertSucceeds(getDocs(collection(db, `Users/${ALICE}/${name}`)));
+      // The payload DataManager sends: Name plus a server timestamp.
+      await assertSucceeds(setDoc(doc(db, path("olive oil")), { Name: "Olive oil", CreatedAt: serverTimestamp() }));
+      await assertSucceeds(setDoc(doc(db, path("rice")), { Name: "Rice", Quantity: 2, Unit: "kg", Note: "brown" }));
+      await assertSucceeds(deleteDoc(doc(db, path("olive oil"))));
     });
     it(`${name}: other users have no access`, async () => {
       const db = as(BOB);
       await assertFails(getDoc(doc(db, path(existing))));
-      await assertFails(setDoc(doc(db, path("x")), { Ingredient: ing(db) }));
+      await assertFails(setDoc(doc(db, path("x")), { Name: "X" }));
       await assertFails(deleteDoc(doc(db, path(existing))));
       await assertFails(getDocs(collection(db, `Users/${ALICE}/${name}`)));
     });
-    it(`${name}: Ingredient must be a document reference`, async () => {
-      await assertFails(setDoc(doc(as(ALICE), path("bad")), { Ingredient: "flour" }));
+    it(`${name}: validates fields`, async () => {
+      const db = as(ALICE);
+      await assertFails(setDoc(doc(db, path("a")), {}));
+      await assertFails(setDoc(doc(db, path("b")), { Name: "" }));
+      await assertFails(setDoc(doc(db, path("c")), { Name: "x".repeat(101) }));
+      await assertFails(setDoc(doc(db, path("d")), { Name: 5 }));
+      await assertFails(setDoc(doc(db, path("e")), { Name: "X", Evil: "y" }));
+      await assertFails(setDoc(doc(db, path("f")), { Name: "X", Quantity: "lots" }));
+      await assertFails(setDoc(doc(db, path("g")), { Name: "X", Unit: "u".repeat(21) }));
+      await assertFails(setDoc(doc(db, path("h")), { Ingredient: "flour" }));
     });
   }
 });
