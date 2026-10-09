@@ -228,6 +228,11 @@ final class SignedInFlowTests: XCTestCase {
         }
         if !app.keyboards.firstMatch.exists { field.tap() }
         field.typeText(text)
+        // Typing is occasionally lost while a system overlay is up; if the field still shows its placeholder, retry.
+        if (field.value as? String) == field.placeholderValue, !text.hasPrefix("\n") {
+            field.tap()
+            field.typeText(text)
+        }
     }
 
     @MainActor

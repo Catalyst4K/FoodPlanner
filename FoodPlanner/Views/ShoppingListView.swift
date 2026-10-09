@@ -42,7 +42,7 @@ struct ShoppingListView: View {
             }
         }
         .padding(.horizontal)
-        .navigationBarHidden(true)
+        .navigationBarTitleDisplayMode(.inline)
         .onChange(of: dataManager.shoppingListIngredients.map(\.id)) { _, newIds in
             hiddenIds = hiddenIds.intersection(Set(newIds))
         }
