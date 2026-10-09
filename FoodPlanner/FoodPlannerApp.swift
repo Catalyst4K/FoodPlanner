@@ -1,10 +1,3 @@
-//
-//  FoodPlannerApp.swift
-//  FoodPlanner
-//
-//  Created by Callum Jones on 10/04/2025.
-//
-
 import SwiftUI
 import Firebase
 import FirebaseAuth

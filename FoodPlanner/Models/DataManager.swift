@@ -1,10 +1,3 @@
-//
-//  DataManager.swift
-//  FoodPlanner
-//
-//  Created by Callum Jones on 07/05/2025.
-//
-
 import SwiftUI
 import Firebase
 import FirebaseFirestore

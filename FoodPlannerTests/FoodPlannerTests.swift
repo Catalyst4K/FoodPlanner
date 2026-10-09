@@ -1,10 +1,3 @@
-//
-//  FoodPlannerTests.swift
-//  FoodPlannerTests
-//
-//  Created by Callum Jones on 10/04/2025.
-//
-
 import Testing
 
 struct FoodPlannerTests {

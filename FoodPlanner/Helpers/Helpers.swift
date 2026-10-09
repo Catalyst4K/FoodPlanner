@@ -1,10 +1,3 @@
-//
-//  Helpers.swift
-//  FoodPlanner
-//
-//  Created by Callum Jones on 23/04/2025.
-//
-
 import SwiftUI
 import UIKit
 

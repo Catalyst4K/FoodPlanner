@@ -1,10 +1,3 @@
-//
-//  Persistence.swift
-//  FoodPlanner
-//
-//  Created by Callum Jones on 10/04/2025.
-//
-
 import CoreData
 
 struct PersistenceController {
