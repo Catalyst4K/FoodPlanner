@@ -9,7 +9,7 @@ SOURCES   := FoodPlanner FoodPlannerTests FoodPlannerUITests
 OUT       := build-output
 FIREBASE_PLIST := FoodPlanner/GoogleService-Info.plist
 
-.PHONY: help format lint build test test-ui coverage check plist
+.PHONY: help format lint build test test-ui coverage licenses check plist
 
 help:
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*##/\t/'
@@ -38,5 +38,8 @@ coverage: plist ## Unit tests with coverage, then the ratchet check
 	xcodebuild test -project $(PROJECT) -scheme $(SCHEME) -destination '$(DEST)' -only-testing:FoodPlannerTests \
 		-enableCodeCoverage YES -resultBundlePath $(OUT)/unit.xcresult
 	scripts/check-coverage.sh $(OUT)/unit.xcresult
+
+licenses: build ## Regenerate THIRD-PARTY-LICENSES.md and Acknowledgements.json
+	scripts/generate-third-party-licenses.sh
 
 check: lint build coverage ## Full checkpoint battery (lint, build, unit tests, coverage ratchet)

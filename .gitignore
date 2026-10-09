@@ -10,7 +10,7 @@ DerivedData/
 
 # SwiftPM
 /.build/
-Package.resolved
+# Package.resolved is committed: it pins the exact dependency versions (see THIRD-PARTY-LICENSES.md)
 
 # CocoaPods
 Pods/

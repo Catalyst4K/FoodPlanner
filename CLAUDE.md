@@ -63,3 +63,5 @@ Unit tests (`FoodPlannerTests`) use the **Swift Testing** framework (`import Tes
 ## Dependencies
 
 Swift packages (Firebase) are embedded in the Xcode project, which Dependabot can't track. Once a month, check the [firebase-ios-sdk releases](https://github.com/firebase/firebase-ios-sdk/releases) and read the release notes before bumping. Don't bump a major version without a full test run.
+
+New dependencies must have a permissive licence (MIT, BSD, Apache-2.0, zlib, ISC or similar). **No GPL/AGPL/LGPL**: App Store distribution and this repo's all-rights-reserved licence rule them out. After any dependency change run `make licenses` and commit `THIRD-PARTY-LICENSES.md` and `FoodPlanner/Resources/Acknowledgements.json` (the in-app Account ▸ Acknowledgements screen reads the latter; Apache-2.0 requires notices to ship with the app). `Package.resolved` is committed and pins exact versions.
