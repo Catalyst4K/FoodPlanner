@@ -63,3 +63,8 @@ The entries below backfill the defaults chosen in `IMPLEMENTATION_PLAN.md` §4.
 - **Context:** `GoogleService-Info.plist` was committed (`e04ad85`) and later deleted (`d4a87d5`), so it remains in the public history. Its values are identifiers rather than true secrets, but with permissive Firestore rules they would be enough to access the database directly.
 - **Decision:** Don't rewrite history, since forks and caches already hold it. Mitigate on the backend: restrict the API key (iOS bundle ID and API restrictions), ship security rules (Phase 2), and add App Check before public TestFlight.
 - **Consequences:** The old config stays visible in history; `SECURITY.md` lists it as out of scope for reports.
+
+## 2026-10-09 — R.2 update: API key replaced and restricted
+- **Context:** The key in the leaked config was replaced some time before this entry, so the key in the public history is no longer the one the app uses. The current key still wasn't restricted.
+- **Decision:** Restrict the current key to the iOS bundle ID (`Callum.FoodPlanner`) and to the APIs the app uses (Identity Toolkit, Token Service, Cloud Firestore, Firebase Installations; App Check and Cloud Storage for Firebase once those features land). Remove the leaked key's access; confirm it is deleted in Google Cloud ▸ Credentials.
+- **Consequences:** The remaining values in the old config (project ID, app ID, bundle ID) can't be rotated, so Firestore security rules (Phase 2) remain the real protection for data. Until Phase 2 ships, check that the live rules are not open.
