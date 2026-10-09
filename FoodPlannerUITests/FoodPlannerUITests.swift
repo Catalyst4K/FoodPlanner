@@ -26,6 +26,32 @@ final class FoodPlannerUITests: XCTestCase {
         return app
     }
 
+    /// Taps a field until the keyboard is up, then types. New-password fields can lose the first taps
+    /// while iOS considers offering a strong password.
+    @MainActor
+    private func type(_ text: String, into field: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<5 {
+            field.tap()
+            if app.keyboards.firstMatch.waitForExistence(timeout: 3) { break }
+        }
+        // iOS offers a strong password for new-password fields and swallows typing until it is dismissed.
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let closers = [
+            app.buttons["Choose My Own Password"], app.buttons["xmark"], springboard.buttons["Choose My Own Password"],
+            springboard.buttons["xmark"],
+        ]
+        let deadline = Date().addingTimeInterval(3)
+        while Date() < deadline {
+            if let closer = closers.first(where: { $0.exists }) {
+                closer.tap()
+                break
+            }
+            usleep(300_000)
+        }
+        if !app.keyboards.firstMatch.exists { field.tap() }
+        field.typeText(text)
+    }
+
     // MARK: - Tests
 
     @MainActor
@@ -63,11 +89,8 @@ final class FoodPlannerUITests: XCTestCase {
 
         app.buttons["login.signupLink"].tap()
 
-        // SignUpView doesn't have identifiers, but its navigation title / text should appear.
-        // Look for a "Sign Up" static text within 3 seconds.
-        let signUpText = app.staticTexts["Sign Up"]
         XCTAssertTrue(
-            signUpText.waitForExistence(timeout: 3),
+            app.staticTexts["signup.title"].waitForExistence(timeout: 3),
             "Tapping the sign-up link should navigate to a Sign Up screen"
         )
     }
@@ -88,11 +111,51 @@ final class FoodPlannerUITests: XCTestCase {
 
         app.buttons["login.submit"].tap()
 
-        // The view sets errorMessage = "Invalid credentials" on failure.
-        let error = app.staticTexts["Invalid credentials"]
+        // Whatever Firebase answers (wrong credentials, no network, ...), the screen shows an error.
         XCTAssertTrue(
-            error.waitForExistence(timeout: 8),
-            "An invalid login should surface an 'Invalid credentials' error"
+            app.staticTexts["login.error"].waitForExistence(timeout: 8),
+            "An invalid login should surface an error"
         )
+    }
+
+    @MainActor
+    func test_loginValidatesTheEmailBeforeCallingFirebase() throws {
+        let app = launchSignedOut()
+        XCTAssertTrue(app.staticTexts["login.title"].waitForExistence(timeout: 5))
+
+        let email = app.textFields["login.email"]
+        email.tap()
+        email.typeText("not-an-email")
+        app.buttons["login.submit"].tap()
+
+        let error = app.staticTexts["login.error"]
+        XCTAssertTrue(error.waitForExistence(timeout: 3))
+        XCTAssertEqual(error.label, "That doesn't look like a valid email address.")
+    }
+
+    @MainActor
+    func test_signupChecksThatPasswordsMatch() throws {
+        let app = launchSignedOut()
+        XCTAssertTrue(app.staticTexts["login.title"].waitForExistence(timeout: 5))
+        app.buttons["login.signupLink"].tap()
+        XCTAssertTrue(app.staticTexts["signup.title"].waitForExistence(timeout: 3))
+
+        type("new.user@example.com", into: app.textFields["signup.email"], in: app)
+        type("abcdef", into: app.secureTextFields["signup.password"], in: app)
+        type("abcdeg", into: app.secureTextFields["signup.confirmPassword"], in: app)
+        app.buttons["signup.submit"].tap()
+
+        let error = app.staticTexts["signup.error"]
+        XCTAssertTrue(error.waitForExistence(timeout: 3))
+        XCTAssertEqual(error.label, "The passwords don't match.")
+    }
+
+    @MainActor
+    func test_forgotPasswordSheetOpens() throws {
+        let app = launchSignedOut()
+        XCTAssertTrue(app.staticTexts["login.title"].waitForExistence(timeout: 5))
+        app.buttons["login.forgotPassword"].tap()
+        XCTAssertTrue(app.textFields["reset.email"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["reset.submit"].exists)
     }
 }

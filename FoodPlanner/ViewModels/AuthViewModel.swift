@@ -72,7 +72,7 @@ class AuthViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Completion-handler API (replaced by the async API in the login and sign-up screens, 3.3)
+    // MARK: - Sign out
 
     // Log the user out
     func signOut() {
@@ -81,32 +81,6 @@ class AuthViewModel: ObservableObject {
             self.user = nil
         } catch let error {
             print("Logout error: \(error.localizedDescription)")
-        }
-    }
-
-    // Log in with email and password
-    func login(email: String, password: String, completion: @escaping (Bool) -> Void) {
-        Auth.auth().signIn(withEmail: email, password: password) { result, error in
-            if let error = error {
-                print("Login error: \(error.localizedDescription)")
-                completion(false)
-                return
-            }
-            self.user = result?.user
-            completion(true)
-        }
-    }
-
-    // Sign up with email and password
-    func signUp(email: String, password: String, completion: @escaping (Bool) -> Void) {
-        Auth.auth().createUser(withEmail: email, password: password) { result, error in
-            if let error = error {
-                print("SignUp error: \(error.localizedDescription)")
-                completion(false)
-                return
-            }
-            self.user = result?.user
-            completion(true)
         }
     }
 }
