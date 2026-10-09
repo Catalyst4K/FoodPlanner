@@ -4,6 +4,7 @@ struct RecipeListScreen: View {
     @EnvironmentObject private var dataManager: DataManager
     @AppStorage("recipeSort") private var sort: RecipeSort = .pantryMatch
     @State private var showingShared: Bool = false
+    @State private var searchText = ""
 
     var body: some View {
         ScrollView {
@@ -17,6 +18,7 @@ struct RecipeListScreen: View {
             .padding(.horizontal)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $searchText, prompt: "Search recipes or ingredients")
         .toolbar {
             if !showingShared {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -72,19 +74,22 @@ struct RecipeListScreen: View {
         .padding(.bottom, 12)
     }
 
+    private var emptyStateMessage: String {
+        if !searchText.isEmpty { return "No recipes match “\(searchText)”." }
+        return showingShared
+            ? "No shared recipes yet.\nWhen someone shares a recipe, it'll appear here."
+            : "Looks like you don't have any recipes yet.\nTry adding one!"
+    }
+
     private var emptyStateView: some View {
         Group {
             if visibleRecipes.isEmpty {
-                Text(
-                    showingShared
-                        ? "No shared recipes yet.\nWhen someone shares a recipe, it'll appear here."
-                        : "Looks like you don't have any recipes yet.\nTry adding one!"
-                )
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
+                Text(emptyStateMessage)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
             }
         }
     }
@@ -153,9 +158,11 @@ struct RecipeListScreen: View {
     }
 
     private var visibleRecipes: [Recipe] {
+        let matching = RecipeSearch.filter(
+            showingShared ? dataManager.sharedRecipes : dataManager.userRecipes, query: searchText)
         if showingShared {
-            return RecipeSort.sorted(dataManager.sharedRecipes, by: .name, pantry: dataManager.pantryIngredients)
+            return RecipeSort.sorted(matching, by: .name, pantry: dataManager.pantryIngredients)
         }
-        return RecipeSort.sorted(dataManager.userRecipes, by: sort, pantry: dataManager.pantryIngredients)
+        return RecipeSort.sorted(matching, by: sort, pantry: dataManager.pantryIngredients)
     }
 }

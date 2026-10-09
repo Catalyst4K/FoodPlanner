@@ -109,6 +109,27 @@ final class SignedInFlowTests: XCTestCase {
     }
 
     @MainActor
+    func test_searchFindsRecipesByTitleOrIngredient() throws {
+        let app = launch()
+        _ = signUp(app)
+        addRecipe(app, title: "Carrot Soup", ingredients: ["Carrot", "Onion"], instructions: "Boil.")
+        XCTAssertTrue(app.staticTexts["Carrot Soup"].waitForExistence(timeout: 15))
+        addRecipe(app, title: "Plain Rice", ingredients: ["Rice"], instructions: "Steam.")
+        XCTAssertTrue(app.staticTexts["Plain Rice"].waitForExistence(timeout: 15))
+
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        type("onion", into: search, in: app)  // an ingredient of the soup only
+        XCTAssertTrue(app.staticTexts["Carrot Soup"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForDisappearance(of: app.staticTexts["Plain Rice"]), "Non-matching recipes are hidden")
+
+        let clear = search.buttons["Clear text"]
+        if clear.exists { clear.tap() }
+        type("zzz", into: search, in: app)
+        XCTAssertTrue(app.staticTexts["No recipes match “zzz”."].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func test_sortMenuReordersRecipes() throws {
         let app = launch()
         _ = signUp(app)
