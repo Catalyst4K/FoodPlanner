@@ -126,6 +126,13 @@ struct PantryView: View {
         withAnimation(.easeOut(duration: 0.35)) {
             _ = hiddenIds.insert(ingredient.id)
         }
-        Task { await dataManager.removeFromPantry(id: ingredient.id) }
+        Task {
+            if await !dataManager.removeFromPantry(id: ingredient.id) {
+                // The write failed (the banner explains why): bring the row back.
+                withAnimation(.easeIn(duration: 0.25)) {
+                    _ = hiddenIds.remove(ingredient.id)
+                }
+            }
+        }
     }
 }
