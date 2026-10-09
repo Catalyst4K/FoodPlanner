@@ -17,6 +17,7 @@ import {
   limit,
   orderBy,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where,
@@ -104,6 +105,32 @@ describe("recipes (schema v2)", () => {
     await assertSucceeds(updateDoc(recipe(db, "new"), { IsShared: true }));
     await assertSucceeds(updateDoc(recipe(db, "new"), { Ingredients: [{ Name: "Oats" }] }));
     await assertSucceeds(deleteDoc(recipe(db, "new")));
+  });
+  it("accepts exactly the payloads DataManager sends (server timestamps included)", async () => {
+    const db = as(ALICE);
+    const ref = recipe(db, "from-app");
+    // addRecipe: FirestoreMapping.recipeFields + OwnerId, IsShared, CreatedAt, UpdatedAt
+    await assertSucceeds(
+      setDoc(ref, {
+        Name: "Pancakes", Instructions: "Mix.", Ingredients: [{ Name: "Flour", Quantity: 150, Unit: "g" }, { Name: "Eggs", Quantity: 2 }],
+        OwnerId: ALICE, IsShared: false, CreatedAt: serverTimestamp(), UpdatedAt: serverTimestamp(),
+      }),
+    );
+    // updateRecipe: recipeFields + UpdatedAt
+    await assertSucceeds(
+      updateDoc(ref, {
+        Name: "Better pancakes", Instructions: "Whisk.", Ingredients: [{ Name: "Flour" }], UpdatedAt: serverTimestamp(),
+      }),
+    );
+    // setShared
+    await assertSucceeds(updateDoc(ref, { IsShared: true }));
+    // saveSharedRecipeToMyList: addRecipe with SourceRecipePath
+    await assertSucceeds(
+      setDoc(recipe(db, "copy"), {
+        Name: "Copy", Instructions: "", Ingredients: [], OwnerId: ALICE, IsShared: false,
+        SourceRecipePath: `Users/${BOB}/Recipes/abc123`, CreatedAt: serverTimestamp(), UpdatedAt: serverTimestamp(),
+      }),
+    );
   });
   it("accepts optional fields: servings, source path, timestamps", async () => {
     const db = as(ALICE);
