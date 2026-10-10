@@ -481,12 +481,12 @@ This phase is fully doable in a Linux container (Node 22 + Java 21 present; the 
 
 ### Phase 7 — Meal planner (the "Planner" in FoodPlanner) _(after Phase 6.1)_
 
-- [ ] **7.1 Schema + data layer** [Mac]
+- [x] **7.1 Schema + data layer** [Mac]
   - `/Users/{uid}/MealPlan/{yyyy-MM-dd}` → `{ Date: "2026-10-05", Meals: [ { Id, RecipeId, RecipeName, Slot: "breakfast"|"lunch"|"dinner"|"snack", Servings? } ], UpdatedAt }`. `RecipeName` is denormalised so a deleted recipe still shows something sensible.
   - Date keys via a pure `PlanDate` helper: `Calendar(identifier: .iso8601)` with `firstWeekday = 2` (DEC-8), `DateFormatter` with `en_US_POSIX` locale and `yyyy-MM-dd`. Tests for week boundaries, DST changes, year boundaries.
   - `DataManager`: `@Published var mealPlan: [String: [PlannedMeal]]`, a listener scoped to the visible week (`whereField(FieldPath.documentID(), isGreaterThanOrEqualTo:)`/`isLessThanOrEqualTo:`) that is re-pointed when the week changes (remove old registration first). `addMeal`, `removeMeal`, `moveMeal` (batched), `clearWeek`.
   - Rules: owner-only on `MealPlan`; validate shape. Add rules tests. Include `MealPlan` in account deletion (3.5).
-- [ ] **7.2 Plan tab UI** [Mac] — New "Plan" tab (`calendar` icon) between Recipes and Pantry. Week header with ◀ ▶ and "This week"; a list section per day showing meals by slot; "+" per day → recipe picker sheet (searchable, shows pantry match); swipe to delete; drag to another day (optional). Tapping a meal pushes the recipe detail. Recipe detail gets an "Add to plan" toolbar action → date + slot picker. IDs `plan.*`.
+- [x] **7.2 Plan tab UI** [Mac] — New "Plan" tab (`calendar` icon) between Recipes and Pantry. Week header with ◀ ▶ and "This week"; a list section per day showing meals by slot; "+" per day → recipe picker sheet (searchable, shows pantry match); swipe to delete; drag to another day (optional). Tapping a meal pushes the recipe detail. Recipe detail gets an "Add to plan" toolbar action → date + slot picker. IDs `plan.*`.
 - [ ] **7.3 Generate shopping list from plan** [Mac] — Button on the Plan tab: "Add missing for this week". Pure `DataManager.missingIngredients(forPlan:recipes:pantry:shopping:)` → keyed, quantity-merged (6.1 merge rules, scaled by planned servings) list of what isn't already in the pantry or on the list. Confirmation sheet listing what will be added (checkboxes), then one batch write. Thorough tests.
 - [ ] **7.4 "What can I cook?"** [Mac] (optional) — On the Plan or Recipes tab: recipes you can make with zero missing ingredients, then one missing, then two. Reuses the DEC-5 sort.
 

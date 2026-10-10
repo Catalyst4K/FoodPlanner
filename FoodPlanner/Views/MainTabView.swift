@@ -7,7 +7,7 @@ struct MainTabView: View {
     @State private var showAccount = false
     @State private var selectedTab: AppTab = .recipes
 
-    private enum AppTab: Hashable { case recipes, pantry, shopping }
+    private enum AppTab: Hashable { case recipes, plan, pantry, shopping }
 
     var body: some View {
         ZStack {
@@ -15,6 +15,13 @@ struct MainTabView: View {
                 Tab("Recipes", systemImage: "list.bullet", value: AppTab.recipes) {
                     NavigationStack {
                         RecipeListScreen()
+                            .toolbar { appToolbar() }
+                    }
+                }
+
+                Tab("Plan", systemImage: "calendar", value: AppTab.plan) {
+                    NavigationStack {
+                        PlanView()
                             .toolbar { appToolbar() }
                     }
                 }
