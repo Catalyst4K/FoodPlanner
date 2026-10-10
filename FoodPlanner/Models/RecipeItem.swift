@@ -7,6 +7,8 @@ struct Recipe: Identifiable {
     var instructions: String
     var ownerId: String = ""  // Set by DataManager on write
     var isShared: Bool = false
+    /// Who shared it (set when shared; nil for older shared recipes).
+    var ownerName: String?
     var servings: Int?
 
     /// The recipe scaled to `target` servings: every amount is multiplied by target ÷ servings. A recipe with no

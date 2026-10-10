@@ -5,6 +5,7 @@ struct SignUpView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var confirmation = ""
+    @State private var displayName = ""
     @State private var errorMessage = ""
     @FocusState private var focusedField: Field?
 
@@ -16,6 +17,12 @@ struct SignUpView: View {
                 .font(.largeTitle)
                 .padding()
                 .accessibilityIdentifier("signup.title")
+
+            TextField("Name (optional, shown on recipes you share)", text: $displayName)
+                .textContentType(.name)
+                .padding()
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .accessibilityIdentifier("signup.displayName")
 
             TextField("Email", text: $email)
                 .keyboardType(.emailAddress)
@@ -82,7 +89,7 @@ struct SignUpView: View {
         errorMessage = ""
         focusedField = nil
         Task {
-            if let failure = await authViewModel.signUp(email: email, password: password) {
+            if let failure = await authViewModel.signUp(email: email, password: password, displayName: displayName) {
                 errorMessage = failure.message
             }
         }

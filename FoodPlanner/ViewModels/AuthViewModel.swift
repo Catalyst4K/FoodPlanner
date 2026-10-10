@@ -33,9 +33,16 @@ class AuthViewModel: ObservableObject {
         }
     }
 
-    func signUp(email: String, password: String) async -> AuthFailure? {
+    /// Creates the account and records the display name (what the user typed, or the email prefix) on their
+    /// Auth profile; it is shown on recipes they share.
+    func signUp(email: String, password: String, displayName: String = "") async -> AuthFailure? {
         await perform {
-            _ = try await Auth.auth().createUser(withEmail: AuthValidation.normalizedEmail(email), password: password)
+            let result = try await Auth.auth().createUser(
+                withEmail: AuthValidation.normalizedEmail(email), password: password)
+            let request = result.user.createProfileChangeRequest()
+            request.displayName = DisplayName.resolved(displayName, email: result.user.email)
+            // The account exists either way; a failed name update shouldn't fail the sign-up.
+            try? await request.commitChanges()
         }
     }
 

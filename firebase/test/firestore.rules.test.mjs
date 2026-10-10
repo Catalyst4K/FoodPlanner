@@ -11,6 +11,7 @@ import {
   collection,
   collectionGroup,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -111,6 +112,9 @@ describe("recipes (schema v2)", () => {
     );
     // setShared
     await assertSucceeds(updateDoc(ref, { IsShared: true }));
+    // setShared with attribution (and unsharing again)
+    await assertSucceeds(updateDoc(ref, { IsShared: true, OwnerName: "Alice Baker" }));
+    await assertSucceeds(updateDoc(ref, { IsShared: false, OwnerName: deleteField() }));
     // saveSharedRecipeToMyList: addRecipe with SourceRecipePath
     await assertSucceeds(
       setDoc(recipe(db, "copy"), {
@@ -163,6 +167,9 @@ describe("recipes (schema v2)", () => {
     await assertFails(setDoc(recipe(db, "t5"), valid({ Servings: 0 })));
     await assertFails(setDoc(recipe(db, "t6"), valid({ Servings: 2.5 })));
     await assertFails(setDoc(recipe(db, "t7"), valid({ SourceRecipePath: "p".repeat(201) })));
+    await assertSucceeds(setDoc(recipe(db, "t8"), valid({ OwnerName: "n".repeat(50) })));
+    await assertFails(setDoc(recipe(db, "t9"), valid({ OwnerName: "n".repeat(51) })));
+    await assertFails(setDoc(recipe(db, "t10"), valid({ OwnerName: 5 })));
   });
   it("shared recipes are discoverable by collection-group query; unconstrained queries are not", async () => {
     const db = as(BOB);

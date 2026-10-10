@@ -124,6 +124,12 @@ struct RecipeListScreen: View {
                     .foregroundColor(.gray)
             }
 
+            if showingShared, let name = recipe.ownerName {
+                Text("Shared by \(name)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
             let match = dataManager.matchedIngredientCount(for: recipe)
             let total = recipe.ingredients.count
             HStack(spacing: 4) {

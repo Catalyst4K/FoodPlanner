@@ -151,7 +151,12 @@ private struct AuthenticatedRoot: View {
 
     init(authViewModel: AuthViewModel, userId: String) {
         self.authViewModel = authViewModel
-        _dataManager = StateObject(wrappedValue: DataManager(userId: userId))
+        _dataManager = StateObject(
+            wrappedValue: DataManager(
+                userId: userId,
+                ownerDisplayName: { [weak authViewModel] in
+                    DisplayName.resolved(authViewModel?.user?.displayName ?? "", email: authViewModel?.user?.email)
+                }))
     }
 
     var body: some View {

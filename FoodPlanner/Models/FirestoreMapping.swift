@@ -32,6 +32,7 @@ enum FirestoreMapping {
             instructions: data["Instructions"] as? String ?? "",
             ownerId: data["OwnerId"] as? String ?? fallbackOwnerId,
             isShared: data["IsShared"] as? Bool ?? false,
+            ownerName: data["OwnerName"] as? String,
             servings: int(data["Servings"])
         )
     }

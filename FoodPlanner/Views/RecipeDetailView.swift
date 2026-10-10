@@ -454,7 +454,8 @@ struct RecipeDetailView: View {
         HStack(spacing: 8) {
             Image(systemName: "person.2.fill")
                 .foregroundColor(.blue)
-            Text("Shared by another user")
+            Text(recipe.ownerName.map { "Shared by \($0)" } ?? "Shared by another user")
+                .accessibilityIdentifier("detail.sharedBy")
                 .font(.footnote)
                 .foregroundColor(.secondary)
         }
