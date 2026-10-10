@@ -24,6 +24,7 @@ struct RecipeDetailView: View {
     // place: `isEditing` flips the detail view into an editable form backed by `editVM`.
     @StateObject private var editVM = RecipeFormViewModel()
     @State private var isEditing = false
+    @State private var showAddToPlan = false
     @State private var newIngredientText = ""
     @FocusState private var isAddIngredientFocused: Bool
 
@@ -147,11 +148,25 @@ struct RecipeDetailView: View {
                         .fontWeight(.semibold)
                         .disabled(!editVM.isFormValid())
                 }
-            } else if isOwnedByCurrentUser {
+            } else {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    ownerMenu
+                    Button {
+                        showAddToPlan = true
+                    } label: {
+                        Image(systemName: "calendar.badge.plus")
+                    }
+                    .accessibilityLabel("Add to plan")
+                    .accessibilityIdentifier("detail.addToPlan")
+                }
+                if isOwnedByCurrentUser {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        ownerMenu
+                    }
                 }
             }
+        }
+        .sheet(isPresented: $showAddToPlan) {
+            AddToPlanSheet(recipe: recipe)
         }
         .confirmationDialog(
             "Delete “\(recipe.title)”?",

@@ -8,6 +8,8 @@ import {
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
   collectionGroup,
   deleteDoc,
@@ -231,6 +233,69 @@ describe("pantry and shopping list (keyed documents)", () => {
       await assertFails(setDoc(doc(db, path("h")), { Ingredient: "flour" }));
     });
   }
+});
+
+describe("meal plan", () => {
+  const day = (db, key, uid = ALICE) => doc(db, `Users/${uid}/MealPlan/${key}`);
+  const meal = { Id: "m1", RecipeId: "r1", RecipeName: "Soup", Slot: "dinner", Servings: 4 };
+
+  it("owner can plan, move and clear meals with the payloads the app sends", async () => {
+    const db = as(ALICE);
+    // addMeal: setData(merge) with arrayUnion
+    await assertSucceeds(
+      setDoc(day(db, "2026-10-05"), { Date: "2026-10-05", Meals: arrayUnion(meal), UpdatedAt: serverTimestamp() }, { merge: true }),
+    );
+    await assertSucceeds(getDoc(day(db, "2026-10-05")));
+    // a second meal on the same day
+    await assertSucceeds(
+      setDoc(
+        day(db, "2026-10-05"),
+        { Date: "2026-10-05", Meals: arrayUnion({ ...meal, Id: "m2", Slot: "lunch" }), UpdatedAt: serverTimestamp() },
+        { merge: true },
+      ),
+    );
+    // removeMeal: updateData with arrayRemove
+    await assertSucceeds(updateDoc(day(db, "2026-10-05"), { Meals: arrayRemove(meal), UpdatedAt: serverTimestamp() }));
+    // clearWeek
+    await assertSucceeds(deleteDoc(day(db, "2026-10-05")));
+  });
+
+  it("other users and signed-out users have no access", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(day(ctx.firestore(), "2026-10-06"), { Date: "2026-10-06", Meals: [meal] });
+    });
+    for (const db of [as(BOB), anon()]) {
+      await assertFails(getDoc(day(db, "2026-10-06")));
+      await assertFails(setDoc(day(db, "2026-10-06"), { Date: "2026-10-06", Meals: [] }));
+      await assertFails(deleteDoc(day(db, "2026-10-06")));
+      await assertFails(getDocs(collection(db, `Users/${ALICE}/MealPlan`)));
+    }
+  });
+
+  it("the week query (by document ID range) is allowed for the owner", async () => {
+    const db = as(ALICE);
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(db, `Users/${ALICE}/MealPlan`),
+          where("__name__", ">=", "2026-10-05"),
+          where("__name__", "<=", "2026-10-11"),
+        ),
+      ),
+    );
+  });
+
+  it("validates the day document", async () => {
+    const db = as(ALICE);
+    await assertFails(setDoc(day(db, "tomorrow"), { Date: "tomorrow", Meals: [] }));
+    await assertFails(setDoc(day(db, "2026-10-5"), { Date: "2026-10-5", Meals: [] }));
+    await assertFails(setDoc(day(db, "2026-10-07"), { Date: "2026-10-08", Meals: [] }));
+    await assertFails(setDoc(day(db, "2026-10-07"), { Date: "2026-10-07", Meals: "dinner" }));
+    await assertFails(setDoc(day(db, "2026-10-07"), { Date: "2026-10-07", Meals: [], Evil: "x" }));
+    await assertFails(setDoc(day(db, "2026-10-07"), { Meals: [] }));
+    await assertFails(setDoc(day(db, "2026-10-07"), { Date: "2026-10-07", Meals: Array(21).fill(meal) }));
+    await assertSucceeds(setDoc(day(db, "2026-10-07"), { Date: "2026-10-07", Meals: Array(20).fill(meal) }));
+  });
 });
 
 function assertEqual(actual, expected) {
