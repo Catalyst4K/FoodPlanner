@@ -22,7 +22,7 @@ service cloud.firestore {
         && d.OwnerId == request.auth.uid
         && d.IsShared is bool
         && (!('Servings' in d) || (d.Servings is int && d.Servings >= 1 && d.Servings <= 100))
-        && (!('OwnerName' in d) || (d.OwnerName is string && d.OwnerName.size() <= 100))
+        && (!('OwnerName' in d) || (d.OwnerName is string && d.OwnerName.size() <= 50))
         && (!('SourceRecipePath' in d) || (d.SourceRecipePath is string && d.SourceRecipePath.size() <= 200))
         && (!('ImagePath' in d) || (d.ImagePath is string && d.ImagePath.size() <= 200));
     }

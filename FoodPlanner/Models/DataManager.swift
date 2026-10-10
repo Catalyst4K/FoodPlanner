@@ -11,11 +11,15 @@ class DataManager: ObservableObject {
     @Published var errorMessage: String?
 
     let currentUserId: String
+    /// The name written on recipes this user shares; evaluated when sharing, so a profile name set just
+    /// after sign-up is picked up.
+    private let ownerDisplayName: () -> String
     private let db = Firestore.firestore()
     private var listeners: [ListenerRegistration] = []
 
-    init(userId: String) {
+    init(userId: String, ownerDisplayName: @escaping () -> String = { "Someone" }) {
         self.currentUserId = userId
+        self.ownerDisplayName = ownerDisplayName
         listenToUserRecipes()
         listenToSharedRecipes()
         listenToPantry()
@@ -148,7 +152,12 @@ class DataManager: ObservableObject {
     @discardableResult
     func setShared(recipeId: String, isShared: Bool) async -> Bool {
         do {
-            try await userRecipesRef.document(recipeId).updateData(["IsShared": isShared])
+            // Sharing records who shared it; unsharing removes the name.
+            let fields: [String: Any] =
+                isShared
+                ? ["IsShared": true, "OwnerName": DisplayName.clean(ownerDisplayName())]
+                : ["IsShared": false, "OwnerName": FieldValue.delete()]
+            try await userRecipesRef.document(recipeId).updateData(fields)
             return true
         } catch {
             report(error, context: "Updating recipe sharing")

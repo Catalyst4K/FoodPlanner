@@ -227,7 +227,7 @@ final class SignedInFlowTests: XCTestCase {
     @MainActor
     func test_sharedRecipeIsVisibleToAnotherUser() throws {
         let owner = launch()
-        _ = signUp(owner)
+        _ = signUp(owner, displayName: "Alice Baker")
         addRecipe(owner, title: "Shared Curry", ingredients: ["Rice"], instructions: "Simmer.")
         XCTAssertTrue(owner.staticTexts["Shared Curry"].waitForExistence(timeout: 15))
         owner.staticTexts["Shared Curry"].tap()
@@ -294,11 +294,12 @@ final class SignedInFlowTests: XCTestCase {
 
     /// Signs up a brand-new random user from the login screen and waits for the signed-in tab bar.
     @MainActor
-    private func signUp(_ app: XCUIApplication) -> (email: String, password: String) {
+    private func signUp(_ app: XCUIApplication, displayName: String? = nil) -> (email: String, password: String) {
         let email = "ui-\(UUID().uuidString.prefix(8).lowercased())@example.com"
         XCTAssertTrue(app.staticTexts["login.title"].waitForExistence(timeout: 15))
         app.buttons["login.signupLink"].tap()
         XCTAssertTrue(app.staticTexts["signup.title"].waitForExistence(timeout: 5))
+        if let displayName { type(displayName, into: app.textFields["signup.displayName"], in: app) }
         type(email, into: app.textFields["signup.email"], in: app)
         type(password, into: app.secureTextFields["signup.password"], in: app)
         type(password, into: app.secureTextFields["signup.confirmPassword"], in: app)
@@ -345,22 +346,18 @@ final class SignedInFlowTests: XCTestCase {
 
     @MainActor
     private func type(_ text: String, into field: XCUIElement, in app: XCUIApplication) {
-        for _ in 0..<5 {
-            field.tap()
-            if app.keyboards.firstMatch.waitForExistence(timeout: 3) { break }
-        }
         // iOS offers a strong password for new-password fields and swallows typing until it is dismissed.
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let closers = [app.buttons["xmark"], springboard.buttons["xmark"]]
-        let deadline = Date().addingTimeInterval(2)
-        while Date() < deadline {
-            if let closer = closers.first(where: { $0.exists }) {
-                closer.tap()
-                break
-            }
-            usleep(200_000)
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+
+        // Tap until the field itself reports keyboard focus (a tap can be lost while the screen settles).
+        for _ in 0..<6 {
+            field.tap()
+            if let closer = closers.first(where: { $0.waitForExistence(timeout: 0.5) }) { closer.tap() }
+            let expectation = XCTNSPredicateExpectation(predicate: focused, object: field)
+            if XCTWaiter().wait(for: [expectation], timeout: 3) == .completed { break }
         }
-        if !app.keyboards.firstMatch.exists { field.tap() }
         field.typeText(text)
         // Typing is occasionally lost while a system overlay is up; if the field still shows its placeholder, retry.
         // (Text ending in a return is submitted and the field clears itself, so it can't be checked this way.)
