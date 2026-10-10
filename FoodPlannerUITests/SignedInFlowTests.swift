@@ -158,6 +158,33 @@ final class SignedInFlowTests: XCTestCase {
     }
 
     @MainActor
+    func test_planCanFillTheShoppingList() throws {
+        let app = launch()
+        _ = signUp(app)
+        addRecipe(app, title: "Planned Curry", ingredients: ["Lentils", "Coconut milk"], instructions: "Simmer.")
+        XCTAssertTrue(app.staticTexts["Planned Curry"].waitForExistence(timeout: 15))
+
+        app.tabBars.buttons["Plan"].tap()
+        let add = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'plan.add.'")).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 10))
+        add.tap()
+        let pick = app.buttons["plan.pick.Planned Curry"]
+        XCTAssertTrue(pick.waitForExistence(timeout: 10))
+        pick.tap()
+        XCTAssertTrue(app.buttons["plan.meal.Planned Curry"].waitForExistence(timeout: 15))
+
+        app.buttons["plan.shopping"].tap()
+        let lentils = app.buttons["planShopping.item.Lentils"]
+        XCTAssertTrue(lentils.waitForExistence(timeout: 10))
+        lentils.tap()  // untick: only the coconut milk is added
+        app.buttons["planShopping.add"].tap()
+
+        app.tabBars.buttons["Shopping"].tap()
+        XCTAssertTrue(app.staticTexts["Coconut milk"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["Lentils"].exists)
+    }
+
+    @MainActor
     func test_shoppingListCanBeGroupedByAisle() throws {
         let app = launch()
         _ = signUp(app)

@@ -473,6 +473,38 @@ class DataManager: ObservableObject {
         }
     }
 
+    /// What the visible week's plan needs that isn't in the pantry or on the shopping list yet.
+    var missingIngredientsForPlan: [IngredientItem] {
+        PlanShopping.missingIngredients(
+            forPlan: PlanShopping.meals(inWeekOf: mealPlan), recipes: userRecipes + sharedRecipes,
+            pantry: pantryIngredients, shopping: shoppingListIngredients)
+    }
+
+    /// Adds the given (new) items to the shopping list in one batch.
+    @discardableResult
+    func addToShoppingList(items: [IngredientItem]) async -> Bool {
+        guard !items.isEmpty else { return true }
+        let batch = db.batch()
+        let base = Date()
+        for (index, item) in items.enumerated() {
+            var fields: [String: Any] = [
+                "Name": item.name,
+                "CreatedAt": Timestamp(date: base.addingTimeInterval(Double(index) * 0.001)),
+            ]
+            if let quantity = item.quantity, quantity > 0 { fields["Quantity"] = quantity }
+            if let unit = item.unit, !unit.isEmpty { fields["Unit"] = unit }
+            if let note = item.note, !note.isEmpty { fields["Note"] = note }
+            batch.setData(fields, forDocument: shoppingRef.document(IngredientKey.documentID(for: item.name)))
+        }
+        do {
+            try await batch.commit()
+            return true
+        } catch {
+            report(error, context: "Adding to shopping list")
+            return false
+        }
+    }
+
     /// Removes every planned meal in the week being shown.
     @discardableResult
     func clearPlanWeek() async -> Bool {

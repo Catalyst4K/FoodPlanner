@@ -4,6 +4,7 @@ import SwiftUI
 struct PlanView: View {
     @EnvironmentObject private var dataManager: DataManager
     @State private var pickerDay: PickerDay?
+    @State private var showingShoppingSheet = false
 
     private struct PickerDay: Identifiable {
         let date: Date
@@ -33,6 +34,20 @@ struct PlanView: View {
         }
         .navigationTitle("Plan")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button {
+                    showingShoppingSheet = true
+                } label: {
+                    Image(systemName: "cart.badge.plus")
+                }
+                .accessibilityLabel("Add missing ingredients to shopping list")
+                .accessibilityIdentifier("plan.shopping")
+            }
+        }
+        .sheet(isPresented: $showingShoppingSheet) {
+            PlanShoppingSheet()
+        }
         .safeAreaInset(edge: .top) { weekHeader }
         .navigationDestination(for: PlanRoute.self) { route in
             if let recipe = recipe(withID: route.recipeId) {
@@ -201,5 +216,57 @@ struct AddToPlanSheet: View {
             }
         }
         .presentationDetents([.medium])
+    }
+}
+
+/// Confirms what the week's plan will add to the shopping list.
+struct PlanShoppingSheet: View {
+    @EnvironmentObject private var dataManager: DataManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var unchecked: Set<String> = []
+
+    private var items: [IngredientItem] { dataManager.missingIngredientsForPlan }
+    private var chosen: [IngredientItem] { items.filter { !unchecked.contains($0.id) } }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if items.isEmpty {
+                    ContentUnavailableView(
+                        "Nothing to buy", systemImage: "checkmark.circle",
+                        description: Text("Everything this week's plan needs is in your pantry or on your list.")
+                    )
+                    .accessibilityIdentifier("planShopping.empty")
+                }
+                ForEach(items) { item in
+                    Button {
+                        if unchecked.contains(item.id) { unchecked.remove(item.id) } else { unchecked.insert(item.id) }
+                    } label: {
+                        HStack {
+                            Image(systemName: unchecked.contains(item.id) ? "circle" : "checkmark.circle.fill")
+                            Text(IngredientFormatter.format(quantity: item.quantity, unit: item.unit, name: item.name))
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                    .accessibilityIdentifier("planShopping.item.\(item.name)")
+                }
+            }
+            .navigationTitle("Add to shopping list")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.accessibilityIdentifier("planShopping.cancel")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add \(chosen.count)") {
+                        Task {
+                            if await dataManager.addToShoppingList(items: chosen) { dismiss() }
+                        }
+                    }
+                    .disabled(chosen.isEmpty)
+                    .accessibilityIdentifier("planShopping.add")
+                }
+            }
+        }
     }
 }
