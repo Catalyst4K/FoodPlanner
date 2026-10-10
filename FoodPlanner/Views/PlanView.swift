@@ -11,26 +11,24 @@ struct PlanView: View {
         var id: String { PlanDate.key(for: date) }
     }
 
+    private struct PlanRoute: Hashable { let recipeId: String }
+
     private var days: [Date] { PlanDate.days(ofWeekContaining: dataManager.planWeekStart) }
+    private var todayKey: String { PlanDate.key(for: Date()) }
+    private var isCurrentWeek: Bool { dataManager.planWeekStart == PlanDate.startOfWeek(containing: Date()) }
 
     var body: some View {
-        List {
-            ForEach(days, id: \.self) { day in
-                Section {
-                    ForEach(meals(on: day)) { meal in
-                        mealRow(meal, on: day)
-                    }
-                    Button {
-                        pickerDay = PickerDay(date: day)
-                    } label: {
-                        Label("Add meal", systemImage: "plus.circle")
-                    }
-                    .accessibilityIdentifier("plan.add.\(PlanDate.key(for: day))")
-                } header: {
-                    Text(day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)))
-                        .accessibilityIdentifier("plan.day.\(PlanDate.key(for: day))")
+        ScrollViewReader { proxy in
+            List {
+                ForEach(days, id: \.self) { day in
+                    daySection(day).id(PlanDate.key(for: day))
                 }
             }
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(.compact)
+            .safeAreaInset(edge: .top, spacing: 0) { weekHeader }
+            .onAppear { scrollToToday(proxy) }
+            .onChange(of: dataManager.planWeekStart) { _, _ in scrollToToday(proxy) }
         }
         .navigationTitle("Plan")
         .navigationBarTitleDisplayMode(.inline)
@@ -45,10 +43,6 @@ struct PlanView: View {
                 .accessibilityIdentifier("plan.shopping")
             }
         }
-        .sheet(isPresented: $showingShoppingSheet) {
-            PlanShoppingSheet()
-        }
-        .safeAreaInset(edge: .top) { weekHeader }
         .navigationDestination(for: PlanRoute.self) { route in
             if let recipe = recipe(withID: route.recipeId) {
                 RecipeDetailView(recipe: recipe)
@@ -59,23 +53,146 @@ struct PlanView: View {
         .sheet(item: $pickerDay) { day in
             PlanRecipePicker(date: day.date)
         }
+        .sheet(isPresented: $showingShoppingSheet) {
+            PlanShoppingSheet()
+        }
     }
 
-    private struct PlanRoute: Hashable { let recipeId: String }
+    // MARK: - Week header
 
-    private func meals(on day: Date) -> [PlannedMeal] {
-        dataManager.mealPlan[PlanDate.key(for: day)] ?? []
+    private var weekHeader: some View {
+        HStack(spacing: 12) {
+            weekButton("chevron.left", label: "Previous week", id: "plan.previous", weeks: -1)
+            VStack(spacing: 2) {
+                Text(
+                    isCurrentWeek
+                        ? "This week"
+                        : "Week of " + dataManager.planWeekStart.formatted(.dateTime.day().month(.abbreviated))
+                )
+                .font(.title3.weight(.semibold))
+                Text(weekRange)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("plan.weekTitle")
+            weekButton("chevron.right", label: "Next week", id: "plan.next", weeks: 1)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if !isCurrentWeek {
+                Button("Today") { dataManager.showPlanWeek(containing: Date()) }
+                    .font(.footnote.weight(.semibold))
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .offset(y: 28)
+                    .accessibilityIdentifier("plan.today")
+            }
+        }
+        .padding(.horizontal)
+        .padding(.top, 4)
+        .padding(.bottom, isCurrentWeek ? 8 : 36)
+        .background(Color(.systemGroupedBackground))
     }
 
-    private func recipe(withID id: String) -> Recipe? {
-        dataManager.userRecipes.first { $0.id == id } ?? dataManager.sharedRecipes.first { $0.id == id }
+    private func weekButton(_ symbol: String, label: String, id: String, weeks: Int) -> some View {
+        Button {
+            dataManager.showPlanWeek(containing: PlanDate.shifted(dataManager.planWeekStart, byWeeks: weeks))
+        } label: {
+            Image(systemName: symbol)
+                .font(.body.weight(.semibold))
+                .frame(width: 40, height: 40)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(id)
+    }
+
+    private var weekRange: String {
+        guard let first = days.first, let last = days.last else { return "" }
+        let sameMonth = PlanDate.calendar.isDate(first, equalTo: last, toGranularity: .month)
+        let start = first.formatted(sameMonth ? .dateTime.day() : .dateTime.day().month(.abbreviated))
+        return start + " – " + last.formatted(.dateTime.day().month(.abbreviated))
+    }
+
+    // MARK: - Days
+
+    private func daySection(_ day: Date) -> some View {
+        let key = PlanDate.key(for: day)
+        let meals = dataManager.mealPlan[key] ?? []
+        return Section {
+            if meals.isEmpty {
+                Button {
+                    pickerDay = PickerDay(date: day)
+                } label: {
+                    Text("Nothing planned")
+                        .font(.subheadline)
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 4, trailing: 20))
+                .accessibilityIdentifier("plan.empty.\(key)")
+            }
+            ForEach(meals) { meal in
+                mealRow(meal, on: day)
+            }
+        } header: {
+            dayHeader(day, key: key, hasMeals: !meals.isEmpty)
+        }
+    }
+
+    private func dayHeader(_ day: Date, key: String, hasMeals: Bool) -> some View {
+        let isToday = key == todayKey
+        return HStack(spacing: 8) {
+            Text(day.formatted(.dateTime.weekday(.wide)))
+                .font(.headline)
+                .foregroundStyle(isToday ? Color.accentColor : .primary)
+            Text(day.formatted(.dateTime.day().month(.abbreviated)))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            if isToday {
+                Text("Today")
+                    .font(.caption2.weight(.bold))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor, in: Capsule())
+                    .foregroundStyle(.white)
+            }
+            Spacer()
+            Button {
+                pickerDay = PickerDay(date: day)
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title3)
+            }
+            .accessibilityLabel("Add meal on \(day.formatted(.dateTime.weekday(.wide)))")
+            .accessibilityIdentifier("plan.add.\(key)")
+        }
+        .textCase(nil)
+        .padding(.top, 4)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("plan.day.\(key)")
     }
 
     private func mealRow(_ meal: PlannedMeal, on day: Date) -> some View {
         NavigationLink(value: PlanRoute(recipeId: meal.recipeId)) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(meal.slot.title).font(.caption).foregroundStyle(.secondary)
-                Text(meal.recipeName)
+            HStack(spacing: 12) {
+                Image(systemName: meal.slot.symbol)
+                    .font(.body)
+                    .foregroundStyle(meal.slot.tint)
+                    .frame(width: 34, height: 34)
+                    .background(meal.slot.tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 9))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(meal.recipeName)
+                    Text(meal.slot.title)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .swipeActions {
@@ -89,39 +206,16 @@ struct PlanView: View {
         .accessibilityIdentifier("plan.meal.\(meal.recipeName)")
     }
 
-    private var weekHeader: some View {
-        HStack {
-            Button {
-                dataManager.showPlanWeek(containing: PlanDate.shifted(dataManager.planWeekStart, byWeeks: -1))
-            } label: {
-                Image(systemName: "chevron.left")
-            }
-            .accessibilityLabel("Previous week")
-            .accessibilityIdentifier("plan.previous")
+    // MARK: - Helpers
 
-            Spacer()
-            Button(weekTitle) {
-                dataManager.showPlanWeek(containing: Date())
-            }
-            .accessibilityIdentifier("plan.today")
-            Spacer()
-
-            Button {
-                dataManager.showPlanWeek(containing: PlanDate.shifted(dataManager.planWeekStart, byWeeks: 1))
-            } label: {
-                Image(systemName: "chevron.right")
-            }
-            .accessibilityLabel("Next week")
-            .accessibilityIdentifier("plan.next")
-        }
-        .padding()
-        .background(.bar)
+    private func recipe(withID id: String) -> Recipe? {
+        dataManager.userRecipes.first { $0.id == id } ?? dataManager.sharedRecipes.first { $0.id == id }
     }
 
-    private var weekTitle: String {
-        let start = dataManager.planWeekStart
-        if start == PlanDate.startOfWeek(containing: Date()) { return "This week" }
-        return "Week of " + start.formatted(.dateTime.day().month(.abbreviated))
+    /// Opens the current week at today rather than at Monday, so the days that matter are on screen.
+    private func scrollToToday(_ proxy: ScrollViewProxy) {
+        guard isCurrentWeek else { return }
+        Task { proxy.scrollTo(todayKey, anchor: .top) }
     }
 }
 
@@ -267,6 +361,27 @@ struct PlanShoppingSheet: View {
                     .accessibilityIdentifier("planShopping.add")
                 }
             }
+        }
+    }
+}
+
+extension MealSlot {
+    /// SF Symbol for the slot's icon chip.
+    var symbol: String {
+        switch self {
+        case .breakfast: "sunrise.fill"
+        case .lunch: "sun.max.fill"
+        case .dinner: "moon.stars.fill"
+        case .snack: "carrot.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .breakfast: .orange
+        case .lunch: .yellow
+        case .dinner: .indigo
+        case .snack: .green
         }
     }
 }

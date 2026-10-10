@@ -137,8 +137,8 @@ final class SignedInFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Planned Pasta"].waitForExistence(timeout: 15))
 
         app.tabBars.buttons["Plan"].tap()
-        // Plan on the first day shown, whose row sits well clear of the tab bar.
-        let add = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'plan.add.'")).firstMatch
+        // The plan opens scrolled to today, so plan on today.
+        let add = todayAddButton(app)
         XCTAssertTrue(add.waitForExistence(timeout: 10))
         add.tap()
         let pick = app.buttons["plan.pick.Planned Pasta"]
@@ -165,7 +165,7 @@ final class SignedInFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Planned Curry"].waitForExistence(timeout: 15))
 
         app.tabBars.buttons["Plan"].tap()
-        let add = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'plan.add.'")).firstMatch
+        let add = todayAddButton(app)
         XCTAssertTrue(add.waitForExistence(timeout: 10))
         add.tap()
         let pick = app.buttons["plan.pick.Planned Curry"]
@@ -398,6 +398,14 @@ final class SignedInFlowTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// The "+" in today's section of the Plan tab.
+    private func todayAddButton(_ app: XCUIApplication) -> XCUIElement {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return app.buttons["plan.add.\(formatter.string(from: Date()))"]
+    }
 
     @MainActor
     private func type(_ text: String, into field: XCUIElement, in app: XCUIApplication) {
