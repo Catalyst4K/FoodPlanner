@@ -12,11 +12,8 @@ export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@21}"
 export PATH="$JAVA_HOME/bin:$PATH"
 
 mkdir -p build-output
-BACKUP=""
-if [ -f "$PLIST" ]; then BACKUP="$(mktemp)"; cp "$PLIST" "$BACKUP"; fi
-restore() { if [ -n "$BACKUP" ]; then cp "$BACKUP" "$PLIST"; rm -f "$BACKUP"; else rm -f "$PLIST"; fi; }
-trap restore EXIT
-cp ci/GoogleService-Info.plist "$PLIST"
+# shellcheck source=_plist-swap.sh
+. "$(dirname "$0")/_plist-swap.sh"
 
 [ -d firebase/node_modules ] || (cd firebase && npm ci)
 rm -rf build-output/ui-emulated.xcresult
