@@ -65,6 +65,14 @@ struct PlanShoppingTests {
         #expect(missing.map(\.name) == ["Salt"])
     }
 
+    @Test func duplicateRecipeIDsUseTheFirst() {
+        let own = recipe("same", [item("Rice", 1)])
+        let shared = recipe("same", [item("Beans", 1)])
+        let missing = PlanShopping.missingIngredients(
+            forPlan: [meal("same")], recipes: [own, shared], pantry: [], shopping: [])
+        #expect(missing.map(\.name) == ["Rice"])
+    }
+
     @Test func nothingPlannedMeansNothingToBuy() {
         #expect(PlanShopping.missingIngredients(forPlan: [], recipes: [], pantry: [], shopping: []).isEmpty)
     }
