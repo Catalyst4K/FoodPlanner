@@ -78,4 +78,35 @@ enum FirestoreMapping {
         if let value = value as? Double, value == value.rounded() { return Int(value) }
         return nil
     }
+
+    // MARK: - Meal plan
+
+    /// Parses one `/MealPlan/{yyyy-MM-dd}` document into its meals, in slot order (then document order). Returns nil
+    /// when `Meals` is missing or not a list; individual malformed meals are skipped.
+    static func meals(from data: [String: Any]) -> [PlannedMeal]? {
+        guard let raw = data["Meals"] as? [[String: Any]] else { return nil }
+        let meals = raw.compactMap { entry -> PlannedMeal? in
+            guard let id = entry["Id"] as? String, !id.isEmpty, let recipeId = entry["RecipeId"] as? String,
+                let recipeName = entry["RecipeName"] as? String, let slotName = entry["Slot"] as? String,
+                let slot = MealSlot(rawValue: slotName)
+            else { return nil }
+            return PlannedMeal(
+                id: id, recipeId: recipeId, recipeName: recipeName, slot: slot, servings: int(entry["Servings"]))
+        }
+        // Stable sort: meals in the same slot keep the order they were added.
+        return meals.enumerated().sorted { a, b in
+            a.element.slot == b.element.slot ? a.offset < b.offset : a.element.slot < b.element.slot
+        }.map(\.element)
+    }
+
+    /// The `Meals` array for a day document.
+    static func mealFields(_ meals: [PlannedMeal]) -> [[String: Any]] {
+        meals.map { meal in
+            var fields: [String: Any] = [
+                "Id": meal.id, "RecipeId": meal.recipeId, "RecipeName": meal.recipeName, "Slot": meal.slot.rawValue,
+            ]
+            if let servings = meal.servings { fields["Servings"] = servings }
+            return fields
+        }
+    }
 }

@@ -9,10 +9,15 @@ class DataManager: ObservableObject {
     @Published var pantryIngredients: [IngredientItem] = []
     @Published var shoppingListIngredients: [IngredientItem] = []
     @Published var errorMessage: String?
+    /// Planned meals for the week being shown, keyed by `yyyy-MM-dd` (days with no meals are absent).
+    @Published var mealPlan: [String: [PlannedMeal]] = [:]
+    /// The Monday of the week `mealPlan` covers.
+    @Published private(set) var planWeekStart: Date = PlanDate.startOfWeek(containing: Date())
 
     let currentUserId: String
     private let db = Firestore.firestore()
     private var listeners: [ListenerRegistration] = []
+    private var planListener: ListenerRegistration?
 
     init(userId: String) {
         self.currentUserId = userId
@@ -20,10 +25,12 @@ class DataManager: ObservableObject {
         listenToSharedRecipes()
         listenToPantry()
         listenToShoppingList()
+        showPlanWeek(containing: Date())
     }
 
     deinit {
         listeners.forEach { $0.remove() }
+        planListener?.remove()
     }
 
     private func report(_ error: Error, context: String) {
@@ -364,6 +371,132 @@ class DataManager: ObservableObject {
         }
     }
 
+    // MARK: - Meal plan
+    //
+    // One document per day, `/Users/{uid}/MealPlan/{yyyy-MM-dd}`, holding that day's meals as an array. Changes use
+    // `arrayUnion` / `arrayRemove` rather than rewriting the array, so two devices planning at once don't overwrite
+    // each other's meals.
+
+    private var mealPlanRef: CollectionReference {
+        db.collection("Users").document(currentUserId).collection("MealPlan")
+    }
+
+    /// Points the plan listener at the week containing `date` (the old listener is removed first).
+    func showPlanWeek(containing date: Date) {
+        let start = PlanDate.startOfWeek(containing: date)
+        planListener?.remove()
+        planListener = nil
+        planWeekStart = start
+        mealPlan = [:]
+
+        let keys = PlanDate.keys(ofWeekContaining: start)
+        guard let first = keys.first, let last = keys.last else { return }
+        planListener =
+            mealPlanRef
+            .whereField(FieldPath.documentID(), isGreaterThanOrEqualTo: first)
+            .whereField(FieldPath.documentID(), isLessThanOrEqualTo: last)
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self else { return }
+                if let error = error {
+                    self.report(error, context: "Meal plan")
+                    return
+                }
+                guard let docs = snapshot?.documents else { return }
+                var plan: [String: [PlannedMeal]] = [:]
+                for doc in docs {
+                    guard let meals = FirestoreMapping.meals(from: doc.data()) else {
+                        print("Skipping meal plan day that doesn't match the schema: \(doc.reference.path)")
+                        continue
+                    }
+                    if !meals.isEmpty { plan[doc.documentID] = meals }
+                }
+                // Ignore a late snapshot for a week we've already moved away from.
+                guard self.planWeekStart == start else { return }
+                withAnimation(.easeOut(duration: 0.25)) {
+                    self.mealPlan = plan
+                }
+            }
+    }
+
+    /// Plans `recipe` for a slot on the day containing `date`.
+    @discardableResult
+    func addMeal(recipe: Recipe, on date: Date, slot: MealSlot, servings: Int? = nil) async -> Bool {
+        let meal = PlannedMeal(
+            id: UUID().uuidString, recipeId: recipe.id, recipeName: recipe.title, slot: slot, servings: servings)
+        let key = PlanDate.key(for: date)
+        do {
+            try await mealPlanRef.document(key).setData(Self.addFields(meal, key: key), merge: true)
+            return true
+        } catch {
+            report(error, context: "Planning a meal")
+            return false
+        }
+    }
+
+    @discardableResult
+    func removeMeal(_ meal: PlannedMeal, on date: Date) async -> Bool {
+        let key = PlanDate.key(for: date)
+        do {
+            try await mealPlanRef.document(key).updateData([
+                "Meals": FieldValue.arrayRemove(FirestoreMapping.mealFields([meal])),
+                "UpdatedAt": FieldValue.serverTimestamp(),
+            ])
+            return true
+        } catch {
+            report(error, context: "Removing a planned meal")
+            return false
+        }
+    }
+
+    /// Moves a planned meal to another day and/or slot atomically.
+    @discardableResult
+    func moveMeal(_ meal: PlannedMeal, from oldDate: Date, to newDate: Date, slot: MealSlot) async -> Bool {
+        let oldKey = PlanDate.key(for: oldDate)
+        let newKey = PlanDate.key(for: newDate)
+        var moved = meal
+        moved.slot = slot
+        guard moved != meal || oldKey != newKey else { return true }
+
+        let batch = db.batch()
+        batch.updateData(
+            [
+                "Meals": FieldValue.arrayRemove(FirestoreMapping.mealFields([meal])),
+                "UpdatedAt": FieldValue.serverTimestamp(),
+            ], forDocument: mealPlanRef.document(oldKey))
+        batch.setData(Self.addFields(moved, key: newKey), forDocument: mealPlanRef.document(newKey), merge: true)
+        do {
+            try await batch.commit()
+            return true
+        } catch {
+            report(error, context: "Moving a planned meal")
+            return false
+        }
+    }
+
+    /// Removes every planned meal in the week being shown.
+    @discardableResult
+    func clearPlanWeek() async -> Bool {
+        let keys = Array(mealPlan.keys)
+        guard !keys.isEmpty else { return true }
+        let batch = db.batch()
+        keys.forEach { batch.deleteDocument(mealPlanRef.document($0)) }
+        do {
+            try await batch.commit()
+            return true
+        } catch {
+            report(error, context: "Clearing the week")
+            return false
+        }
+    }
+
+    private static func addFields(_ meal: PlannedMeal, key: String) -> [String: Any] {
+        [
+            "Date": key,
+            "Meals": FieldValue.arrayUnion(FirestoreMapping.mealFields([meal])),
+            "UpdatedAt": FieldValue.serverTimestamp(),
+        ]
+    }
+
     // MARK: - Account deletion
 
     /// Deletes everything the current user owns: recipes (shared ones too), pantry, shopping list, then the
@@ -372,7 +505,7 @@ class DataManager: ObservableObject {
     @discardableResult
     func deleteAllUserData() async -> Bool {
         do {
-            for collection in [userRecipesRef, pantryRef, shoppingRef] {
+            for collection in [userRecipesRef, pantryRef, shoppingRef, mealPlanRef] {
                 try await deleteAllDocuments(in: collection)
             }
             try await db.collection("Users").document(currentUserId).delete()
