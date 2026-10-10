@@ -61,7 +61,7 @@ struct ShoppingListView: View {
 
     @ViewBuilder
     private var listContent: some View {
-        if sort == .byRecipe {
+        if sort != .newest {
             ForEach(groupedSections) { section in
                 sectionHeader(section)
                 ForEach(section.items) { ingredient in
@@ -97,7 +97,8 @@ struct ShoppingListView: View {
     // MARK: - Grouping
 
     private var groupedSections: [ShoppingSection] {
-        ShoppingSection.sections(items: visibleIngredients, recipes: dataManager.userRecipes)
+        if sort == .byAisle { return ShoppingSection.sectionsByAisle(items: visibleIngredients) }
+        return ShoppingSection.sections(items: visibleIngredients, recipes: dataManager.userRecipes)
     }
 
     // MARK: - Rows
@@ -115,9 +116,16 @@ struct ShoppingListView: View {
                 .accessibilityIdentifier("shopping.tick.\(ingredient.name)")
                 .accessibilityLabel("Mark \(ingredient.name) as bought")
 
-                Text(ingredient.name)
-                    .foregroundColor(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(IngredientFormatter.format(ingredient))
+                        .foregroundColor(.primary)
+                    if let note = ingredient.note, !note.isEmpty {
+                        Text(note)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Button {
                     remove(ingredient)
@@ -140,7 +148,7 @@ struct ShoppingListView: View {
     private var addRow: some View {
         QuickAddRow(
             text: $newItemText, isFocused: $isAddFieldFocused, style: .list, fieldIdentifier: "shopping.addField",
-            onCommit: commit
+            knownNames: dataManager.knownIngredientNames, onCommit: commit
         )
         .padding(.horizontal)
         .background(Color(UIColor.systemBackground))
@@ -158,7 +166,8 @@ struct ShoppingListView: View {
         let trimmed = newItemText.trimmingCharacters(in: .whitespaces)
         newItemText = ""
         guard !trimmed.isEmpty else { return }
-        Task { await dataManager.addToShoppingList(name: trimmed) }
+        let parsed = IngredientParser.parse(trimmed)
+        Task { await dataManager.addToShoppingList(name: parsed.name, quantity: parsed.quantity, unit: parsed.unit) }
     }
 
     private func check(_ ingredient: IngredientItem) {

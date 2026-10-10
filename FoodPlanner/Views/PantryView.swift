@@ -75,7 +75,7 @@ struct PantryView: View {
     private var addRow: some View {
         QuickAddRow(
             text: $newItemText, isFocused: $isAddFieldFocused, style: .list, fieldIdentifier: "pantry.addField",
-            onCommit: commit)
+            knownNames: dataManager.knownIngredientNames, onCommit: commit)
     }
 
     // Fills the empty area below the add row. Tap toggles: focuses the add field when
@@ -90,7 +90,9 @@ struct PantryView: View {
         let trimmed = newItemText.trimmingCharacters(in: .whitespaces)
         newItemText = ""
         guard !trimmed.isEmpty else { return }
-        Task { await dataManager.addToPantry(name: trimmed) }
+        // "2 eggs" is just "eggs" in the pantry: it only records what you have, not how much.
+        let name = IngredientParser.parse(trimmed).name
+        Task { await dataManager.addToPantry(name: name) }
     }
 
     private func remove(_ ingredient: IngredientItem) {

@@ -69,6 +69,105 @@ final class SignedInFlowTests: XCTestCase {
     }
 
     @MainActor
+    func test_quantities_servings_and_shoppingListMerge() throws {
+        let app = launch()
+        _ = signUp(app)
+        addRecipe(
+            app, title: "Pancakes", ingredients: ["200g flour", "2 eggs"], instructions: "Whisk and fry.", servings: 4)
+        XCTAssertTrue(app.staticTexts["Pancakes"].waitForExistence(timeout: 15))
+
+        // Amounts are parsed on entry and shown formatted.
+        app.staticTexts["Pancakes"].tap()
+        XCTAssertTrue(app.staticTexts["200 g flour"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["2 eggs"].exists)
+
+        // Scaling the servings (4 → 8) doubles every amount.
+        XCTAssertTrue(app.steppers["detail.servings"].waitForExistence(timeout: 5))
+        let increment = app.buttons["detail.servings-Increment"]
+        for _ in 0..<4 { increment.tap() }
+        XCTAssertTrue(app.staticTexts["400 g flour"].waitForExistence(timeout: 5), "Amounts should scale with servings")
+        XCTAssertTrue(app.staticTexts["4 eggs"].exists)
+
+        // The scaled amounts go onto the shopping list.
+        app.buttons["detail.addAll"].tap()
+        goBack(app)
+        app.tabBars.buttons["Shopping"].tap()
+        XCTAssertTrue(app.staticTexts["400 g flour"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["4 eggs"].exists)
+
+        // Typing the same ingredient again merges the amounts (same unit: sum).
+        let field = app.textFields["shopping.addField"]
+        type("100g flour\n", into: field, in: app)
+        XCTAssertTrue(
+            app.staticTexts["500 g flour"].waitForExistence(timeout: 10), "Same-unit amounts should be summed")
+        XCTAssertFalse(app.staticTexts["400 g flour"].exists)
+
+        // A different, non-convertible unit is kept as a note instead.
+        type("1 cup flour\n", into: field, in: app)
+        XCTAssertTrue(app.staticTexts["+ 1 cup"].waitForExistence(timeout: 10), "Other units should append a note")
+        XCTAssertTrue(app.staticTexts["500 g flour"].exists)
+    }
+
+    @MainActor
+    func test_searchFindsRecipesByTitleOrIngredient() throws {
+        let app = launch()
+        _ = signUp(app)
+        addRecipe(app, title: "Carrot Soup", ingredients: ["Carrot", "Onion"], instructions: "Boil.")
+        XCTAssertTrue(app.staticTexts["Carrot Soup"].waitForExistence(timeout: 15))
+        addRecipe(app, title: "Plain Rice", ingredients: ["Rice"], instructions: "Steam.")
+        XCTAssertTrue(app.staticTexts["Plain Rice"].waitForExistence(timeout: 15))
+
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        type("onion", into: search, in: app)  // an ingredient of the soup only
+        XCTAssertTrue(app.staticTexts["Carrot Soup"].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForDisappearance(of: app.staticTexts["Plain Rice"]), "Non-matching recipes are hidden")
+
+        let clear = search.buttons["Clear text"]
+        if clear.exists { clear.tap() }
+        type("zzz", into: search, in: app)
+        XCTAssertTrue(app.staticTexts["No recipes match “zzz”."].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func test_shoppingListCanBeGroupedByAisle() throws {
+        let app = launch()
+        _ = signUp(app)
+        app.tabBars.buttons["Shopping"].tap()
+        let field = app.textFields["shopping.addField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        type("Milk\n", into: field, in: app)
+        XCTAssertTrue(app.buttons["shopping.tick.Milk"].waitForExistence(timeout: 10))
+        type("Carrots\n", into: field, in: app)
+        XCTAssertTrue(app.buttons["shopping.tick.Carrots"].waitForExistence(timeout: 10))
+
+        app.buttons["shopping.sort"].tap()
+        app.buttons["Group by aisle"].tap()
+        XCTAssertTrue(app.staticTexts["Produce"].waitForExistence(timeout: 5), "Carrots belong under Produce")
+        XCTAssertTrue(app.staticTexts["Dairy & Eggs"].exists, "Milk belongs under Dairy & Eggs")
+        XCTAssertLessThan(
+            app.staticTexts["Produce"].frame.minY, app.staticTexts["Dairy & Eggs"].frame.minY,
+            "Aisles are in walking order")
+    }
+
+    @MainActor
+    func test_ingredientNamesAreSuggestedWhileTyping() throws {
+        let app = launch()
+        _ = signUp(app)
+        addRecipe(app, title: "Carrot Soup", ingredients: ["Carrots"], instructions: "Boil.")
+        XCTAssertTrue(app.staticTexts["Carrot Soup"].waitForExistence(timeout: 15))
+
+        app.tabBars.buttons["Shopping"].tap()
+        let field = app.textFields["shopping.addField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10))
+        type("Car", into: field, in: app)
+        let suggestion = app.buttons["suggestion.Carrots"]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 5), "A known ingredient should be suggested")
+        suggestion.tap()
+        XCTAssertTrue(app.buttons["shopping.tick.Carrots"].waitForExistence(timeout: 10), "Picking it adds the item")
+    }
+
+    @MainActor
     func test_sortMenuReordersRecipes() throws {
         let app = launch()
         _ = signUp(app)
@@ -221,7 +320,9 @@ final class SignedInFlowTests: XCTestCase {
     }
 
     @MainActor
-    private func addRecipe(_ app: XCUIApplication, title: String, ingredients: [String], instructions: String) {
+    private func addRecipe(
+        _ app: XCUIApplication, title: String, ingredients: [String], instructions: String, servings: Int = 0
+    ) {
         app.buttons["recipes.add"].tap()
         let titleField = app.textFields["addRecipe.title"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 10))
@@ -229,6 +330,10 @@ final class SignedInFlowTests: XCTestCase {
         let ingredientField = app.textFields["addRecipe.ingredientField"]
         for name in ingredients {
             type(name + "\n", into: ingredientField, in: app)
+        }
+        if servings > 0 {
+            let increment = app.steppers["Servings"].buttons["Increment"]
+            for _ in 0..<servings { increment.tap() }
         }
         let instructionsField = app.textViews["addRecipe.instructions"]
         instructionsField.tap()
@@ -258,7 +363,8 @@ final class SignedInFlowTests: XCTestCase {
         if !app.keyboards.firstMatch.exists { field.tap() }
         field.typeText(text)
         // Typing is occasionally lost while a system overlay is up; if the field still shows its placeholder, retry.
-        if (field.value as? String) == field.placeholderValue, !text.hasPrefix("\n") {
+        // (Text ending in a return is submitted and the field clears itself, so it can't be checked this way.)
+        if !text.hasSuffix("\n"), (field.value as? String) == field.placeholderValue {
             field.tap()
             field.typeText(text)
         }

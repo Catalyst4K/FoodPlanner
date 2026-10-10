@@ -12,6 +12,7 @@ struct AddRecipeView: View {
         ScrollView {
             VStack(spacing: 20) {
                 titleField
+                ServingsStepper(servings: $viewModel.servings)
                 ingredientsSection
                 instructionsSection
                 submitButton
@@ -62,10 +63,12 @@ struct AddRecipeView: View {
     private func ingredientRow(_ ingredient: IngredientItem) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Text(ingredient.name)
+                Text(IngredientFormatter.format(ingredient))
                     .padding(.vertical, 10)
                     .padding(.horizontal)
                     .foregroundColor(.primary)
+                    .contentShape(Rectangle())
+                    .onTapGesture { editIngredientAsText(ingredient) }
 
                 Spacer()
 
@@ -88,7 +91,7 @@ struct AddRecipeView: View {
     private var addIngredientRow: some View {
         QuickAddRow(
             text: $newIngredientText, isFocused: $isAddIngredientFocused, fieldIdentifier: "addRecipe.ingredientField",
-            onCommit: commitIngredient)
+            knownNames: dataManager.knownIngredientNames, onCommit: commitIngredient)
     }
 
     private var tapToAddSpacer: some View {
@@ -142,12 +145,20 @@ struct AddRecipeView: View {
 
     // MARK: - Actions
 
+    /// Tapping an ingredient row moves it into the add field as text, so it can be edited and re-parsed on commit.
+    private func editIngredientAsText(_ ingredient: IngredientItem) {
+        commitIngredient()
+        viewModel.removeIngredient(id: ingredient.id)
+        newIngredientText = IngredientFormatter.format(ingredient)
+        isAddIngredientFocused = true
+    }
+
     private func commitIngredient() {
         let trimmed = newIngredientText.trimmingCharacters(in: .whitespaces)
         newIngredientText = ""
         guard !trimmed.isEmpty else { return }
         withAnimation(.easeOut(duration: 0.25)) {
-            viewModel.addIngredient(name: trimmed)
+            viewModel.addIngredient(text: trimmed)
         }
     }
 

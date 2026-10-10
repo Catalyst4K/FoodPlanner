@@ -228,9 +228,44 @@ class DataManager: ObservableObject {
         await addToList(pantryRef, existing: pantryIngredients, name: name, context: "Adding to pantry")
     }
 
+    /// Adds an ingredient to the shopping list, with an optional amount. If it is already on the list, the amounts
+    /// are merged (see `ShoppingQuantity.merge`) instead of creating a second line.
     @discardableResult
-    func addToShoppingList(name: String) async -> Bool {
-        await addToList(shoppingRef, existing: shoppingListIngredients, name: name, context: "Adding to shopping list")
+    func addToShoppingList(name: String, quantity: Double? = nil, unit: String? = nil) async -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let id = IngredientKey.documentID(for: trimmed)
+        let adding = IngredientItem(id: id, name: trimmed, quantity: quantity, unit: unit)
+
+        if let existing = shoppingListIngredients.first(where: { $0.id == id }) {
+            let merged = ShoppingQuantity.merge(existing: existing, adding: adding)
+            if merged == ShoppingQuantity.Merged(quantity: existing.quantity, unit: existing.unit, note: existing.note)
+            {
+                return true
+            }
+            var fields: [String: Any] = [:]
+            fields["Quantity"] = merged.quantity.map { $0 as Any } ?? FieldValue.delete()
+            fields["Unit"] = merged.unit.map { $0 as Any } ?? FieldValue.delete()
+            fields["Note"] = merged.note.map { $0 as Any } ?? FieldValue.delete()
+            do {
+                try await shoppingRef.document(id).updateData(fields)
+                return true
+            } catch {
+                report(error, context: "Updating shopping list")
+                return false
+            }
+        }
+
+        var fields: [String: Any] = ["Name": trimmed, "CreatedAt": FieldValue.serverTimestamp()]
+        if let quantity, quantity > 0 { fields["Quantity"] = quantity }
+        if let unit, !unit.isEmpty { fields["Unit"] = unit }
+        do {
+            try await shoppingRef.document(id).setData(fields)
+            return true
+        } catch {
+            report(error, context: "Adding to shopping list")
+            return false
+        }
     }
 
     @discardableResult
@@ -299,23 +334,26 @@ class DataManager: ObservableObject {
         let shoppingKeys = Set(shoppingListIngredients.map { IngredientKey.documentID(for: $0.name) })
 
         var seen = Set<String>()
-        let missing = recipe.ingredients.compactMap { ingredient -> (id: String, name: String)? in
+        let missing = recipe.ingredients.compactMap {
+            ingredient -> (id: String, name: String, quantity: Double?, unit: String?)? in
             let name = ingredient.name.trimmingCharacters(in: .whitespacesAndNewlines)
             let id = IngredientKey.documentID(for: name)
             guard !name.isEmpty, !pantryKeys.contains(id), !shoppingKeys.contains(id), seen.insert(id).inserted
             else { return nil }
-            return (id, name)
+            return (id, name, ingredient.quantity, ingredient.unit)
         }
         guard !missing.isEmpty else { return true }
 
         let batch = db.batch()
         let base = Date()
         for (index, entry) in missing.enumerated() {
-            batch.setData(
-                [
-                    "Name": entry.name,
-                    "CreatedAt": Timestamp(date: base.addingTimeInterval(Double(index) * 0.001)),
-                ], forDocument: shoppingRef.document(entry.id))
+            var fields: [String: Any] = [
+                "Name": entry.name,
+                "CreatedAt": Timestamp(date: base.addingTimeInterval(Double(index) * 0.001)),
+            ]
+            if let quantity = entry.quantity, quantity > 0 { fields["Quantity"] = quantity }
+            if let unit = entry.unit, !unit.isEmpty { fields["Unit"] = unit }
+            batch.setData(fields, forDocument: shoppingRef.document(entry.id))
         }
         do {
             try await batch.commit()
@@ -354,6 +392,12 @@ class DataManager: ObservableObject {
             snapshot.documents.forEach { batch.deleteDocument($0.reference) }
             try await batch.commit()
         }
+    }
+
+    /// Every ingredient name the user has used (recipes, pantry, shopping list), for autocomplete.
+    var knownIngredientNames: [String] {
+        userRecipes.flatMap { $0.ingredients.map(\.name) } + pantryIngredients.map(\.name)
+            + shoppingListIngredients.map(\.name)
     }
 
     // MARK: - View helpers (instance methods delegate to pure static helpers below)
@@ -424,6 +468,6 @@ class DataManager: ObservableObject {
         if let existing = shoppingListIngredients.first(where: { IngredientKey.normalized($0.name) == key }) {
             return await removeFromShoppingList(id: existing.id)
         }
-        return await addToShoppingList(name: ingredient.name)
+        return await addToShoppingList(name: ingredient.name, quantity: ingredient.quantity, unit: ingredient.unit)
     }
 }

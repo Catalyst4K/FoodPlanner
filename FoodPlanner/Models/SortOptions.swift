@@ -50,7 +50,7 @@ enum RecipeSort: String, CaseIterable, Identifiable {
 
 /// How the shopping list is arranged. Raw values are stored in `@AppStorage`.
 enum ShoppingSort: String, CaseIterable, Identifiable {
-    case newest, byRecipe
+    case newest, byRecipe, byAisle
 
     var id: String { rawValue }
 
@@ -58,6 +58,7 @@ enum ShoppingSort: String, CaseIterable, Identifiable {
         switch self {
         case .newest: "Newest"
         case .byRecipe: "Group by recipe"
+        case .byAisle: "Group by aisle"
         }
     }
 }
