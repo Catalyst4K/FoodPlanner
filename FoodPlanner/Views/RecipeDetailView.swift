@@ -10,7 +10,7 @@ struct RecipeDetailView: View {
     // via onReceive on the @Published publishers guarantees we pick up edits.
     private let recipeId: String
     @EnvironmentObject private var dataManager: DataManager
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) private var dismiss
     @State private var recipe: Recipe
     @State private var didPressAddAll = false
     /// The servings the page is currently scaled to (nil: as written).
@@ -175,7 +175,7 @@ struct RecipeDetailView: View {
         ) {
             Button("Delete Recipe", role: .destructive) {
                 Task { await dataManager.deleteRecipe(recipeId: recipe.id) }
-                presentationMode.wrappedValue.dismiss()
+                dismiss()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -577,7 +577,7 @@ struct RecipeDetailView: View {
                 Task { await dataManager.saveSharedRecipeToMyList(recipe) }
                 withAnimation(.easeInOut(duration: 0.2)) { didPressSave = true }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    presentationMode.wrappedValue.dismiss()
+                    dismiss()
                 }
             } label: {
                 HStack {
