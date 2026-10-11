@@ -417,7 +417,7 @@ This phase is fully doable in a Linux container (Node 22 + Java 21 present; the 
 
 ### Phase 4 — UI structure & polish _(after Phase 1)_
 
-- [ ] **4.1 Navigation restructure** [Mac] (U1, U10)
+- [~] **4.1 Navigation restructure** _(done except the last bullet: `presentationMode`/`navigationBarItems` are gone; the `onReceive` sync stays until verified on a device)_ [Mac] (U1, U10)
   - `MainTabView`: remove the outer `NavigationStack`. Use iOS 18+ `TabView(selection:)` with `Tab(…, value:)`; each tab's content is wrapped in **its own `NavigationStack`**. Remove every `NavigationView`.
   - Recipes tab uses value-based navigation: `NavigationLink(value: recipe.id)` + `.navigationDestination(for: String.self) { RecipeDetailView(recipeId: $0) }`. "Add Recipe" pushes via a separate destination value (e.g. an enum `RecipeRoute { case detail(String), add }`).
   - Each tab gets its own `.toolbar`: gear button (opens `AccountView` as a `.sheet`, DEC-6) and, where relevant, the sort menu (4.2).

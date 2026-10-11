@@ -3,7 +3,7 @@ import SwiftUI
 struct AddRecipeView: View {
     @StateObject var viewModel: RecipeFormViewModel
     @EnvironmentObject private var dataManager: DataManager
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) private var dismiss
 
     @State private var newIngredientText: String = ""
     @FocusState private var isAddIngredientFocused: Bool
@@ -22,7 +22,12 @@ struct AddRecipeView: View {
         .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Add Recipe")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarItems(leading: Button("Cancel", action: cancelAction))
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Cancel", action: cancelAction)
+                    .accessibilityIdentifier("addRecipe.cancel")
+            }
+        }
         .navigationBarBackButtonHidden(true)
     }
 
@@ -168,11 +173,11 @@ struct AddRecipeView: View {
         guard let built = viewModel.buildRecipe() else { return }
         Task { await dataManager.addRecipe(recipe: built) }
         viewModel.resetForm()
-        presentationMode.wrappedValue.dismiss()
+        dismiss()
     }
 
     private func cancelAction() {
         viewModel.resetForm()
-        presentationMode.wrappedValue.dismiss()
+        dismiss()
     }
 }
