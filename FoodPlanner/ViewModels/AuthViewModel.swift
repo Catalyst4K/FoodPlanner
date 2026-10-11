@@ -1,4 +1,4 @@
-import FirebaseAuth
+@preconcurrency import FirebaseAuth
 import SwiftUI
 
 @MainActor
@@ -8,7 +8,8 @@ class AuthViewModel: ObservableObject {
     /// True while an auth request is in flight, so screens can disable their buttons and show progress.
     @Published var isWorking = false
 
-    private var authStateHandle: AuthStateDidChangeListenerHandle?
+    /// Only read again in `deinit`, when nothing else can reach this object, so opting out of isolation is safe.
+    private nonisolated(unsafe) var authStateHandle: AuthStateDidChangeListenerHandle?
 
     init() {
         setupAuthStateListener()
