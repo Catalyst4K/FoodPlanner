@@ -441,7 +441,7 @@ This phase is fully doable in a Linux container (Node 22 + Java 21 present; the 
 - [x] **4.5 Shopping grouping by recipe ID** [Mac] (U8) — Key sections by `recipe.id`, title for display; move the grouping into a pure static helper `DataManager.shoppingSections(items:recipes:)` returning a small `ShoppingSection` struct, with tests (multi-recipe bucket, per-recipe, other, same-title recipes stay separate, sort order).
 - [x] **4.6 Roll back optimistic hides** [Mac] (U4) — In Pantry/Shopping, if the `Bool` result from the DataManager call is `false`, remove the id from `hiddenIds` with animation.
 - [x] **4.7 Empty states** [Mac] — Pantry and Shopping list currently show nothing when empty; add `ContentUnavailableView` with a hint ("Add what's in your cupboards…").
-- [ ] **4.8 Swift 6 / strict concurrency** [Mac] (H7) — Set `SWIFT_STRICT_CONCURRENCY = complete` (warnings), fix what's reasonable; then consider `SWIFT_VERSION = 6.0`. This is a build-setting change in `project.pbxproj` — do it via Xcode's Build Settings UI, not by hand. Separate PR; may be deferred.
+- [x] **4.8 Swift 6 / strict concurrency** _(done: the app target builds warning-free in Swift 6 language mode; tests stay Swift 5)_ [Mac] (H7) — Set `SWIFT_STRICT_CONCURRENCY = complete` (warnings), fix what's reasonable; then consider `SWIFT_VERSION = 6.0`. This is a build-setting change in `project.pbxproj` — do it via Xcode's Build Settings UI, not by hand. Separate PR; may be deferred.
 
 ---
 

@@ -1,6 +1,6 @@
 import SwiftUI
 import Firebase
-import FirebaseFirestore
+@preconcurrency import FirebaseFirestore
 
 @MainActor
 class DataManager: ObservableObject {
@@ -19,8 +19,9 @@ class DataManager: ObservableObject {
     /// after sign-up is picked up.
     private let ownerDisplayName: () -> String
     private let db = Firestore.firestore()
-    private var listeners: [ListenerRegistration] = []
-    private var planListener: ListenerRegistration?
+    // Only read again in `deinit`, when nothing else can reach this object, so opting out of isolation is safe.
+    private nonisolated(unsafe) var listeners: [ListenerRegistration] = []
+    private nonisolated(unsafe) var planListener: ListenerRegistration?
 
     init(userId: String, ownerDisplayName: @escaping () -> String = { "Someone" }) {
         self.currentUserId = userId
