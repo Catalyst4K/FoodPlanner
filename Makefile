@@ -45,6 +45,9 @@ licenses: build ## Regenerate THIRD-PARTY-LICENSES.md and Acknowledgements.json
 test-ui-emulated: ## Signed-in UI tests against the Firebase emulators (needs Java 21)
 	scripts/ui-tests.sh
 
+test-integration: ## DataManager integration tests against the Firebase emulators (needs Java 21)
+	scripts/integration-tests.sh
+
 screenshots: ## Regenerate docs/screenshots (needs Java 21: brew install openjdk@21)
 	scripts/screenshots.sh
 
