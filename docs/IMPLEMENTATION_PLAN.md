@@ -430,7 +430,7 @@ This phase is fully doable in a Linux container (Node 22 + Java 21 present; the 
   - `enum RecipeSort: String, CaseIterable, Identifiable { case pantryMatch, name, newest }` and `enum ShoppingSort: String, CaseIterable { case newest, byRecipe }` (add `.byAisle` in 6.4). Persist with `@AppStorage("recipeSort")` / `@AppStorage("shoppingSort")`.
   - Toolbar `Menu { Picker("Sort", selection: $sort) { … } } label: { Image(systemName: "arrow.up.arrow.down") }`. Delete `sortMenuOverlay`, `showSortMenu`, `applySort`.
   - New pure helper `DataManager.sortedRecipes(_:by:pantry:)` implementing DEC-5 for `.pantryMatch`, `localizedStandardCompare` for `.name`, and `CreatedAt` order (as delivered by the listener) for `.newest`. Replace `recipesSortedByPantryMatch` and update its test to the new ordering. Use `localizedStandardCompare` everywhere titles are sorted (shared list, shopping sections).
-- [ ] **4.3 Extract shared form + components** [Mac] (U5)
+- [x] **4.3 Extract shared form + components** [Mac] (U5)
   - `Views/Components/QuickAddRow.swift` — the "+ Add ingredient" text field row (binding text, focus binding, `onCommit`), including commit-on-focus-loss.
   - `Views/Components/TapToFocusSpacer.swift`.
   - `Views/Components/RecipeFormView.swift` — title, ingredient list, quick-add row, instructions editor; driven by a `RecipeFormViewModel`. Used by both `AddRecipeView` (push) and `RecipeDetailView` edit mode.
