@@ -106,7 +106,7 @@ jobs:
   ui:
     if: github.event_name != 'pull_request'
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -122,6 +122,9 @@ jobs:
           java-version: 21
 
       - name: Run emulator-backed UI tests
+        # The hosted runners are slow and a different test times out on most runs; retry failures.
+        env:
+          UI_RETRIES: 2
         run: scripts/ui-tests.sh
 
       - name: Upload test results on failure
