@@ -185,6 +185,33 @@ final class SignedInFlowTests: XCTestCase {
     }
 
     @MainActor
+    func test_canCookGroupsRecipesByMissingIngredients() throws {
+        let app = launch()
+        _ = signUp(app)
+        addRecipe(app, title: "Cookable Soup", ingredients: ["Carrot", "Onion"], instructions: "Boil.")
+        XCTAssertTrue(app.staticTexts["Cookable Soup"].waitForExistence(timeout: 15))
+
+        app.tabBars.buttons["Pantry"].tap()
+        let pantryField = app.textFields["pantry.addField"]
+        XCTAssertTrue(pantryField.waitForExistence(timeout: 10))
+        type("Carrot\n", into: pantryField, in: app)
+        XCTAssertTrue(app.staticTexts["Carrot"].waitForExistence(timeout: 10))
+
+        app.tabBars.buttons["Recipes"].tap()
+        app.buttons["Can Cook"].tap()
+        XCTAssertTrue(app.staticTexts["recipes.canCook.1"].waitForExistence(timeout: 10), "One ingredient short")
+        XCTAssertFalse(app.staticTexts["recipes.canCook.0"].exists)
+
+        app.tabBars.buttons["Pantry"].tap()
+        type("Onion\n", into: app.textFields["pantry.addField"], in: app)
+        XCTAssertTrue(app.staticTexts["Onion"].waitForExistence(timeout: 10))
+
+        app.tabBars.buttons["Recipes"].tap()
+        XCTAssertTrue(app.staticTexts["recipes.canCook.0"].waitForExistence(timeout: 10), "Ready to cook")
+        XCTAssertFalse(app.staticTexts["recipes.canCook.1"].exists)
+    }
+
+    @MainActor
     func test_shoppingListCanBeGroupedByAisle() throws {
         let app = launch()
         _ = signUp(app)

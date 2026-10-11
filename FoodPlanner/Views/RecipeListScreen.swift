@@ -3,8 +3,17 @@ import SwiftUI
 struct RecipeListScreen: View {
     @EnvironmentObject private var dataManager: DataManager
     @AppStorage("recipeSort") private var sort: RecipeSort = .pantryMatch
-    @State private var showingShared: Bool = false
+    @State private var scope: Scope = .mine
     @State private var searchText = ""
+
+    private enum Scope: String, CaseIterable, Identifiable {
+        case mine = "My Recipes"
+        case canCook = "Can Cook"
+        case shared = "Shared"
+        var id: String { rawValue }
+    }
+
+    private var showingShared: Bool { scope == .shared }
 
     var body: some View {
         ScrollView {
@@ -12,15 +21,15 @@ struct RecipeListScreen: View {
                 headerView
                 scopePicker
                 emptyStateView
-                recipeListView
-                if !showingShared { addRecipeButton }
+                if scope == .canCook { canCookView } else { recipeListView }
+                if scope == .mine { addRecipeButton }
             }
             .padding(.horizontal)
         }
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search recipes or ingredients")
         .toolbar {
-            if !showingShared {
+            if scope == .mine {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Menu {
                         Picker("Sort", selection: $sort) {
@@ -66,30 +75,57 @@ struct RecipeListScreen: View {
     }
 
     private var scopePicker: some View {
-        Picker("", selection: $showingShared) {
-            Text("My Recipes").tag(false)
-            Text("Shared").tag(true)
+        Picker("", selection: $scope) {
+            ForEach(Scope.allCases) { Text($0.rawValue).tag($0) }
         }
+        .accessibilityIdentifier("recipes.scope")
         .pickerStyle(.segmented)
         .padding(.bottom, 12)
     }
 
     private var emptyStateMessage: String {
         if !searchText.isEmpty { return "No recipes match “\(searchText)”." }
-        return showingShared
-            ? "No shared recipes yet.\nWhen someone shares a recipe, it'll appear here."
-            : "Looks like you don't have any recipes yet.\nTry adding one!"
+        switch scope {
+        case .shared: return "No shared recipes yet.\nWhen someone shares a recipe, it'll appear here."
+        case .canCook:
+            return "Nothing is within two ingredients of your pantry yet.\nAdd what you have on the Pantry tab."
+        case .mine: return "Looks like you don't have any recipes yet.\nTry adding one!"
+        }
     }
 
     private var emptyStateView: some View {
         Group {
-            if visibleRecipes.isEmpty {
+            if scope == .canCook ? canCookGroups.isEmpty : visibleRecipes.isEmpty {
                 Text(emptyStateMessage)
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
+            }
+        }
+    }
+
+    private var canCookGroups: [CookableRecipes.Group] {
+        CookableRecipes.groups(
+            RecipeSearch.filter(dataManager.userRecipes, query: searchText), pantry: dataManager.pantryIngredients)
+    }
+
+    private var canCookView: some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(canCookGroups, id: \.missing) { group in
+                Text(group.title)
+                    .font(.headline)
+                    .foregroundStyle(group.missing == 0 ? Color.green : .secondary)
+                    .padding(.top, 16)
+                    .padding(.bottom, 4)
+                    .accessibilityIdentifier("recipes.canCook.\(group.missing)")
+                ForEach(group.recipes) { recipe in
+                    NavigationLink(value: RecipeRoute.detail(recipe.id)) {
+                        row(for: recipe)
+                    }
+                    Divider()
+                }
             }
         }
     }
