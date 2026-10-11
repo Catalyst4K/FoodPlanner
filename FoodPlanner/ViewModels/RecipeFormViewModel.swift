@@ -7,6 +7,8 @@ class RecipeFormViewModel: ObservableObject {
     @Published var instructions: String = ""
     /// Optional; nil means "not set".
     @Published var servings: Int?
+    /// Text typed in the "add ingredient" row but not yet committed to `ingredients`.
+    @Published var pendingIngredient: String = ""
 
     init() {}
 
@@ -22,6 +24,7 @@ class RecipeFormViewModel: ObservableObject {
         self.title = recipe.title
         self.instructions = recipe.instructions
         self.servings = recipe.servings
+        self.pendingIngredient = ""
         self.ingredients = recipe.ingredients.map {
             IngredientItem(id: UUID().uuidString, name: $0.name, quantity: $0.quantity, unit: $0.unit)
         }
@@ -47,6 +50,23 @@ class RecipeFormViewModel: ObservableObject {
         ingredients.append(IngredientItem(id: UUID().uuidString, name: trimmed))
     }
 
+    /// Commits whatever is in the add row (parsed like `addIngredient(text:)`) and clears it.
+    func commitPendingIngredient() {
+        let trimmed = pendingIngredient.trimmingCharacters(in: .whitespaces)
+        pendingIngredient = ""
+        guard !trimmed.isEmpty else { return }
+        addIngredient(text: trimmed)
+    }
+
+    /// Moves an ingredient back into the add row as text so it can be edited and re-parsed on commit.
+    /// Anything already typed in the row is committed first.
+    func editIngredientAsText(id: String) {
+        commitPendingIngredient()
+        guard let ingredient = ingredients.first(where: { $0.id == id }) else { return }
+        removeIngredient(id: id)
+        pendingIngredient = IngredientFormatter.format(ingredient)
+    }
+
     func removeIngredient(id: String) {
         ingredients.removeAll { $0.id == id }
     }
@@ -55,6 +75,7 @@ class RecipeFormViewModel: ObservableObject {
         title = ""
         instructions = ""
         servings = nil
+        pendingIngredient = ""
         ingredients = []
     }
 

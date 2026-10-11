@@ -2,22 +2,15 @@ import SwiftUI
 import UIKit
 
 struct RecipeDetailView: View {
-    // Held locally and refreshed via .onReceive whenever DataManager republishes.
-    // We can't rely on a computed lookup + @EnvironmentObject re-render alone:
-    // under NavigationView, a pushed detail view often doesn't re-evaluate its
-    // body when observed state changes while a child (edit sheet) is on top —
-    // so on pop-back the stale render is what the user sees. Explicitly syncing
-    // via onReceive on the @Published publishers guarantees we pick up edits.
+    // Held locally and refreshed via .onReceive whenever DataManager republishes (plan 4.1: remove this once
+    // verified on a device that a computed lookup alone never goes stale after an edit).
     private let recipeId: String
     @EnvironmentObject private var dataManager: DataManager
     @Environment(\.dismiss) private var dismiss
     @State private var recipe: Recipe
-    @State private var didPressAddAll = false
     /// The servings the page is currently scaled to (nil: as written).
     @State private var displayedServings: Int?
-    @State private var didPressSave = false
     @State private var showDeleteConfirmation = false
-    @State private var overlayOpacity: Double = 0
 
     // Inline editing. Rather than pushing a separate edit page (which caused a jarring
     // reload/reshuffle on pop-back once Firestore echoed the write), editing happens in
@@ -25,8 +18,6 @@ struct RecipeDetailView: View {
     @StateObject private var editVM = RecipeFormViewModel()
     @State private var isEditing = false
     @State private var showAddToPlan = false
-    @State private var newIngredientText = ""
-    @FocusState private var isAddIngredientFocused: Bool
 
     init(recipe: Recipe) {
         self.recipeId = recipe.id
@@ -59,43 +50,11 @@ struct RecipeDetailView: View {
         }
     }
 
-    /// A displayable ingredient row with a stable identity for `ForEach`. `id` is the lowercased
-    /// name: the same ingredient is optimistically shown with the user-typed casing but comes back
-    /// from the listener with the canonical casing stored in `/Ingredients`. Keying by the raw name
-    /// would make those rows change identity on republish and animate ("jump"); lowercasing keeps
-    /// them stable. Names are unique within a recipe (deduped case-insensitively).
-    private struct IngredientRow: Identifiable {
-        let id: String
-        let ingredient: IngredientItem
-        let isInPantry: Bool
-        let isInShoppingList: Bool
-    }
-
-    private var ingredientRows: [IngredientRow] {
-        dataManager.ingredientsWithStatus(for: shownRecipe).map { status in
-            IngredientRow(
-                id: IngredientKey.documentID(for: status.ingredient.name),
-                ingredient: status.ingredient,
-                isInPantry: status.isInPantry,
-                isInShoppingList: status.isInShoppingList
-            )
-        }
-    }
-
-    /// The recipe as displayed: scaled to `displayedServings` when the user has changed it.
-    private var shownRecipe: Recipe {
-        guard let displayedServings else { return recipe }
-        return recipe.scaled(toServings: displayedServings)
-    }
-
-    private var shouldShowAddAllButton: Bool {
-        dataManager.hasMissingIngredients(for: recipe)
-    }
-
     var body: some View {
         Group {
             if isEditing {
-                editForm
+                RecipeFormView(
+                    viewModel: editVM, idPrefix: "detail.edit", knownNames: dataManager.knownIngredientNames)
             } else {
                 GeometryReader { proxy in
                     if proxy.size.width > proxy.size.height {
@@ -106,32 +65,7 @@ struct RecipeDetailView: View {
                 }
             }
         }
-        // Solid background so any exposed edges during rotation blend in instead of showing black.
-        .background(Color(.systemBackground).ignoresSafeArea())
-        // Full-screen cover that hides the rotation animation. Appears INSTANTLY on rotation
-        // (no fade-in — otherwise the UIKit rotation animation would already be underway),
-        // then fades out once rotation has completed, revealing the newly-laid-out orientation.
-        .overlay {
-            Color(.systemBackground)
-                .ignoresSafeArea()
-                // Extra oversize keeps corners covered while UIKit rotates the frame.
-                .frame(width: 3000, height: 3000)
-                .opacity(overlayOpacity)
-                .allowsHitTesting(overlayOpacity > 0.01)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
-            // Only mask real orientation changes (portrait ↔ landscape). Ignore face-up / face-down.
-            let orientation = UIDevice.current.orientation
-            guard orientation.isPortrait || orientation.isLandscape else { return }
-
-            overlayOpacity = 1  // Instant cover — critically no animation here.
-            // Wait past UIKit's rotation animation (~0.3–0.4s) before fading the cover out.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                withAnimation(.easeOut(duration: 0.35)) {
-                    overlayOpacity = 0
-                }
-            }
-        }
+        .coversRotation()
         .navigationTitle(isEditing ? "Edit Recipe" : recipe.title)
         .navigationBarTitleDisplayMode(.inline)
         // While editing, hide the back button so the user commits via Save/Cancel rather than
@@ -205,11 +139,11 @@ struct RecipeDetailView: View {
                 titleRow
 
                 if !isOwnedByCurrentUser {
-                    sharedBanner
+                    SharedRecipeBanner(ownerName: recipe.ownerName)
                 }
 
-                ingredientsSection
-                instructionsSection
+                RecipeIngredientsSection(recipe: recipe, displayedServings: $displayedServings)
+                RecipeInstructionsSection(instructions: recipe.instructions)
                 actionsSection
             }
             .padding()
@@ -224,9 +158,9 @@ struct RecipeDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if !isOwnedByCurrentUser {
-                        sharedBanner
+                        SharedRecipeBanner(ownerName: recipe.ownerName)
                     }
-                    ingredientsSection
+                    RecipeIngredientsSection(recipe: recipe, displayedServings: $displayedServings)
                     actionsSection
                 }
                 .padding()
@@ -253,140 +187,23 @@ struct RecipeDetailView: View {
         }
     }
 
-    // MARK: - Edit form
-
-    /// In-place editable form shown when `isEditing`. Mirrors AddRecipeView's fields but lives on
-    /// the detail view so there's no page push/pop — the user stays on the same screen.
-    private var editForm: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                editTitleField
-                ServingsStepper(servings: $editVM.servings)
-                editIngredientsSection
-                editInstructionsSection
-            }
-            .padding(.bottom, 100)
-        }
-        .scrollDismissesKeyboard(.interactively)
-    }
-
-    private var editTitleField: some View {
-        TextField("Recipe Title", text: $editVM.title)
-            .accessibilityIdentifier("detail.edit.title")
-            .font(.title)
-            .fontWeight(.bold)
-            .padding(.top, 40)
-            .multilineTextAlignment(.center)
-            .textFieldStyle(.plain)
-            .padding(.horizontal)
-            .overlay(Divider().background(Color.gray), alignment: .bottom)
-            .padding(.horizontal)
-    }
-
-    private var editIngredientsSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Ingredients")
-                .font(.title2)
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 10)
-                .padding(.bottom, 4)
-
-            ForEach(editVM.ingredients) { ingredient in
-                editIngredientRow(ingredient)
-                    .transition(.opacity)
-            }
-
-            addIngredientRow
-            tapToAddSpacer
-        }
-    }
-
-    // Fills the empty area under the ingredient list. Tapping it toggles the add field: focuses it
-    // when idle, or dismisses the keyboard when typing (losing focus commits any in-progress text).
-    private var tapToAddSpacer: some View {
-        TapToFocusSpacer(isFocused: $isAddIngredientFocused)
-    }
-
-    private func editIngredientRow(_ ingredient: IngredientItem) -> some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(IngredientFormatter.format(ingredient))
-                    .padding(.vertical, 10)
-                    .padding(.horizontal)
-                    .foregroundColor(.primary)
-                    .contentShape(Rectangle())
-                    .onTapGesture { editIngredientAsText(ingredient) }
-
-                Spacer()
-
-                Button {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        editVM.removeIngredient(id: ingredient.id)
-                    }
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundColor(.red)
-                        .padding(5)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal)
-            Divider()
-        }
-    }
-
-    private var addIngredientRow: some View {
-        QuickAddRow(
-            text: $newIngredientText, isFocused: $isAddIngredientFocused,
-            fieldIdentifier: "detail.edit.ingredientField",
-            knownNames: dataManager.knownIngredientNames, onCommit: commitIngredient)
-    }
-
-    private var editInstructionsSection: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text("Instructions")
-                .font(.title2)
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 20)
-
-            TextEditor(text: $editVM.instructions)
-                .accessibilityIdentifier("detail.edit.instructions")
-                .frame(minHeight: 150)
-                .padding(10)
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(20)
-                .font(.body)
-                .padding(.horizontal)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(.gray, lineWidth: 0.5)
-                        .padding(10)
-                }
-        }
-    }
-
     // MARK: - Edit actions
 
     private func beginEdit() {
         editVM.load(from: recipe)
-        newIngredientText = ""
         isEditing = true
     }
 
     private func cancelEdit() {
-        newIngredientText = ""
-        isAddIngredientFocused = false
         isEditing = false
     }
 
     private func saveEdit() {
         // Commit any half-typed ingredient before building.
-        commitIngredient()
+        editVM.commitPendingIngredient()
         guard let built = editVM.buildRecipe() else { return }
         // Optimistically apply to local state so the view reflects the edit instantly. Keying the
-        // ingredient list by name (see ingredientsSection) means the later Firestore republish
+        // ingredient list by name (see RecipeIngredientsSection) means the later Firestore republish
         // matches these rows by identity and doesn't reshuffle. Preserve id/ownerId/isShared.
         recipe.title = built.title
         recipe.ingredients = built.ingredients
@@ -394,25 +211,7 @@ struct RecipeDetailView: View {
         recipe.servings = built.servings
         displayedServings = nil
         Task { await dataManager.updateRecipe(recipeId: recipeId, recipe: built) }
-        isAddIngredientFocused = false
         isEditing = false
-    }
-
-    /// Tapping an ingredient row moves it into the add field as text, so it can be edited and re-parsed on commit.
-    private func editIngredientAsText(_ ingredient: IngredientItem) {
-        commitIngredient()
-        editVM.removeIngredient(id: ingredient.id)
-        newIngredientText = IngredientFormatter.format(ingredient)
-        isAddIngredientFocused = true
-    }
-
-    private func commitIngredient() {
-        let trimmed = newIngredientText.trimmingCharacters(in: .whitespaces)
-        newIngredientText = ""
-        guard !trimmed.isEmpty else { return }
-        withAnimation(.easeOut(duration: 0.25)) {
-            editVM.addIngredient(text: trimmed)
-        }
     }
 
     // MARK: - Menu
@@ -465,135 +264,10 @@ struct RecipeDetailView: View {
         .padding(.top, 20)
     }
 
-    private var sharedBanner: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "person.2.fill")
-                .foregroundColor(.blue)
-            Text(recipe.ownerName.map { "Shared by \($0)" } ?? "Shared by another user")
-                .accessibilityIdentifier("detail.sharedBy")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(8)
-    }
-
-    private var ingredientsSection: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text("Ingredients")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .padding(.top, 10)
-
-                Spacer()
-
-                if shouldShowAddAllButton {
-                    Button {
-                        Task { await dataManager.addMissingIngredientsToShoppingList(from: shownRecipe) }
-                        withAnimation(.easeInOut(duration: 0.2)) { didPressAddAll = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            withAnimation(.easeInOut(duration: 0.2)) { didPressAddAll = false }
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: "cart.fill")
-                            Text("Add All").font(.body)
-                        }
-                        .foregroundColor(.blue)
-                        .padding(5)
-                        .opacity(didPressAddAll ? 0.4 : 1.0)
-                    }
-                    .accessibilityIdentifier("detail.addAll")
-                }
-            }
-
-            if let servings = recipe.servings {
-                Stepper(
-                    "Servings: \(displayedServings ?? servings)",
-                    value: Binding(get: { displayedServings ?? servings }, set: { displayedServings = $0 }),
-                    in: 1...100
-                )
-                .accessibilityIdentifier("detail.servings")
-            }
-
-            ForEach(ingredientRows) { status in
-                HStack {
-                    Button {
-                        Task { await dataManager.togglePantry(ingredient: status.ingredient) }
-                    } label: {
-                        Image(systemName: status.isInPantry ? "refrigerator.fill" : "refrigerator")
-                            .foregroundColor(status.isInPantry ? .green : .gray)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("detail.pantry.\(status.ingredient.name)")
-                    .accessibilityLabel(status.isInPantry ? "In pantry" : "Not in pantry")
-
-                    Text(IngredientFormatter.format(status.ingredient))
-                        .font(.body)
-                        .padding(.bottom, 2)
-
-                    Spacer()
-
-                    if !status.isInPantry {
-                        Button {
-                            Task { await dataManager.toggleShoppingList(ingredient: status.ingredient) }
-                        } label: {
-                            Image(systemName: status.isInShoppingList ? "cart.fill" : "cart")
-                                .foregroundColor(status.isInShoppingList ? .blue : .gray)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("detail.cart.\(status.ingredient.name)")
-                        .accessibilityLabel(status.isInShoppingList ? "On shopping list" : "Not on shopping list")
-                    }
-                }
-            }
-        }
-    }
-
-    private var instructionsSection: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Divider().padding(.vertical, 10)
-
-            Text("Instructions")
-                .font(.title2)
-                .fontWeight(.semibold)
-                .padding(.top, 10)
-
-            Text(recipe.instructions)
-                .font(.body)
-                .padding(.top, 10)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
     @ViewBuilder
     private var actionsSection: some View {
         if !isOwnedByCurrentUser {
-            Button {
-                Task { await dataManager.saveSharedRecipeToMyList(recipe) }
-                withAnimation(.easeInOut(duration: 0.2)) { didPressSave = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                    dismiss()
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "square.and.arrow.down")
-                    Text(didPressSave ? "Saved!" : "Save to My Recipes")
-                }
-                .foregroundColor(.white)
-                .fontWeight(.bold)
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(Color.blue)
-                .cornerRadius(8)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 20)
-            .disabled(didPressSave)
+            SaveSharedRecipeButton(recipe: recipe)
         }
     }
 }

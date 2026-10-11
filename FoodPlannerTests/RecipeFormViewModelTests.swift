@@ -192,3 +192,52 @@ struct RecipeFormViewModelTests {
         #expect(vm.servings == nil)
     }
 }
+
+@Suite("RecipeFormViewModel pending ingredient")
+struct RecipeFormPendingIngredientTests {
+    @Test("commitPendingIngredient parses the typed text, clears the row and ignores blanks")
+    func commitPending() {
+        let vm = RecipeFormViewModel()
+        vm.pendingIngredient = "  200g plain flour "
+        vm.commitPendingIngredient()
+        #expect(vm.pendingIngredient == "")
+        #expect(vm.ingredients.map(\.name) == ["plain flour"])
+        #expect(vm.ingredients.first?.quantity == 200)
+
+        vm.pendingIngredient = "   "
+        vm.commitPendingIngredient()
+        #expect(vm.ingredients.count == 1)
+        #expect(vm.pendingIngredient == "")
+    }
+
+    @Test("editIngredientAsText moves a row back into the add field, committing what was typed first")
+    func editAsText() throws {
+        let vm = RecipeFormViewModel()
+        vm.addIngredient(text: "3 eggs")
+        let id = try #require(vm.ingredients.first?.id)
+        vm.pendingIngredient = "milk"
+        vm.editIngredientAsText(id: id)
+        #expect(vm.ingredients.map(\.name) == ["milk"])
+        #expect(vm.pendingIngredient == "3 eggs")
+    }
+
+    @Test("editIngredientAsText with an unknown id only commits the typed text")
+    func editUnknown() {
+        let vm = RecipeFormViewModel()
+        vm.pendingIngredient = "salt"
+        vm.editIngredientAsText(id: "nope")
+        #expect(vm.ingredients.map(\.name) == ["salt"])
+        #expect(vm.pendingIngredient == "")
+    }
+
+    @Test("load and resetForm clear any pending text")
+    func loadAndResetClearPending() {
+        let vm = RecipeFormViewModel()
+        vm.pendingIngredient = "half typed"
+        vm.load(from: Recipe(id: "1", title: "T", ingredients: [], instructions: ""))
+        #expect(vm.pendingIngredient == "")
+        vm.pendingIngredient = "again"
+        vm.resetForm()
+        #expect(vm.pendingIngredient == "")
+    }
+}
